@@ -1,0 +1,31 @@
+import { test, expect } from '@playwright/test';
+const id = '507f1f77bcf86cd799439012';
+const product = { _id: id, name: 'Sensor completo', sku: 'S1', type: 'SENSOR', price: 80, stock: 4, description: 'Descrição completa\nSegunda linha de detalhes', manufacturer: 'Fabricante teste', specifications: { Alimentação: '5V' }, imageUrl: 'https://images.example.com/1.png', additionalImageUrls: [2, 3, 4, 5].map(i => `https://images.example.com/${i}.png`) };
+test('product details show full description, gallery and direct purchase', async ({ page }) => {
+  await page.route('https://images.example.com/**', route => route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="blue"/></svg>' }));
+  await page.route('**/api/**', route => route.fulfill({ json: route.request().url().endsWith('/products') ? [product] : route.request().url().endsWith('/products/' + id) ? product : {} }));
+  await page.goto('/catalogo');
+  await page.getByRole('link', { name: 'Ver detalhes de ' + product.name, exact: true }).click();
+  await expect(page).toHaveURL('/produto/' + id);
+  await expect(page.getByRole('heading', { name: product.name })).toBeVisible();
+  await expect(page.getByText(product.description)).toBeVisible();
+  await expect(page.getByText('5V', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Ver imagem/ })).toHaveCount(5);
+  await page.getByRole('button', { name: 'Ver imagem 5', exact: true }).click();
+  await expect(page.locator('.main-image img')).toHaveAttribute('src', product.additionalImageUrls[3]);
+  await page.getByRole('button', { name: 'Adicionar +' }).click();
+  await expect(page.locator('.cart-link')).toHaveAccessibleName('Carrinho, 1 itens');
+  await page.getByRole('button', { name: 'Comprar agora' }).click();
+  await expect(page).toHaveURL('/finalizar-compra/' + id);
+  await expect(page.getByLabel('Quantidade')).toHaveValue('1');
+});
+test('details support direct links on mobile and a missing product', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/products/' + id, route => route.fulfill({ json: product }));
+  await page.goto('/produto/' + id);
+  await expect(page.getByRole('heading', { name: product.name })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.route('**/api/products/' + id, route => route.fulfill({ status: 404, json: {} }));
+  await page.reload();
+  await expect(page.getByRole('alert')).toHaveText('Produto não encontrado.');
+});

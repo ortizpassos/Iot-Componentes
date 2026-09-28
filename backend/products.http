@@ -1,0 +1,27 @@
+@baseUrl = http://localhost:3000/api
+@productId = COLE_O_ID_RETORNADO
+@adminToken = COLE_O_ACCESS_TOKEN_DE_ADMIN
+
+### Cadastrar ESP32 (repetir o SKU retorna 409)
+POST {{baseUrl}}/products
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "ESP32-S3 DevKit",
+  "sku": "ESP32-S3-001",
+  "description": "Placa de desenvolvimento ESP32-S3",
+  "type": "BOARD",
+  "price": 89.90,
+  "stock": 20,
+  "manufacturer": "Espressif",
+  "model": "ESP32-S3",
+  "specifications": { "wifi": true, "bluetooth": true, "usb": true },
+  "programming": { "supported": true, "platform": "ESP32", "chip": "ESP32-S3" }
+}
+
+### Listar ativos
+GET {{baseUrl}}/products
+
+### Consultar produto
+GET {{baseUrl}}/products/{{productId}}

@@ -1,0 +1,87 @@
+import { Transform, Type } from 'class-transformer';
+import {
+  ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsNotEmpty, IsNumber, IsObject,
+  IsOptional, IsString, Min, ValidateNested,
+} from 'class-validator';
+import { InstallmentFeePayer, ProductType } from '../schemas/product.schema';
+import { IsProductImageUrl } from '../image-url.validator';
+
+export class ProductProgrammingDto {
+  @IsOptional()
+  @IsBoolean()
+  supported?: boolean;
+
+  @IsOptional()
+  @IsString()
+  platform?: string;
+
+  @IsOptional()
+  @IsString()
+  chip?: string;
+}
+
+export class CreateProductDto {
+  @IsOptional()
+  @IsEnum(InstallmentFeePayer)
+  installmentFeePayer?: InstallmentFeePayer;
+
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsString()
+  @IsNotEmpty()
+  sku!: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsProductImageUrl()
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(4)
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  @IsProductImageUrl({ each: true })
+  additionalImageUrls?: string[];
+
+  @IsEnum(ProductType)
+  type!: ProductType;
+
+  @IsNumber()
+  @Min(0)
+  price!: number;
+
+  @IsInt()
+  @Min(0)
+  stock!: number;
+
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+
+  @IsOptional()
+  @IsString()
+  manufacturer?: string;
+
+  @IsOptional()
+  @IsString()
+  model?: string;
+
+  @IsOptional()
+  @IsObject()
+  specifications?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => ProductProgrammingDto)
+  programming?: ProductProgrammingDto;
+}

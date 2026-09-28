@@ -1,0 +1,1 @@
+export const profile = { fullName: 'Cliente Teste', cpf: '52998224725', address: { zipCode: '01001000', street: 'Rua Teste', number: '10', complement: '', neighborhood: 'Centro', city: 'São Paulo', state: 'SP' } };

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+coverage/
+.angular/
+.npm-cache/
+playwright-report/
+test-results/
+.DS_Store
+backend/uploads/

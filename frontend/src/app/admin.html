@@ -1,0 +1,79 @@
+<div class="admin-shell"><aside class="admin-sidebar"><a class="admin-brand" routerLink="/adm">IoT Lab <span>ADMIN</span></a><p>PAINEL DE CONTROLE</p><nav aria-label="Navegação administrativa">@for (item of tabs; track item.key) { <button [class.selected]="tab() === item.key" [disabled]="busy()" (click)="select(item.key)">{{ item.label }} <span aria-hidden="true">→</span></button> }</nav><a class="view-store" routerLink="/catalogo">Visualizar loja ↗</a><button class="admin-exit" (click)="logout()">Sair da administração</button></aside><div class="admin-content"><header class="admin-top"><span>ÁREA ADMINISTRATIVA</span><strong>{{ session.user()?.name || 'Administrador' }}</strong></header><div class="admin-body">
+<p class="eyebrow">GESTÃO DA LOJA</p><h1>Administração</h1><p class="subtitle">Gerencie o catálogo, os pedidos e o conteúdo que seus clientes veem.</p>
+@if (summary(); as s) {
+  <div class="admin-stats"><div class="panel"><small>Produtos ativos</small><strong>{{ s.activeProducts }} / {{ s.products }}</strong></div><div class="panel"><small>Pedidos pendentes</small><strong>{{ s.pendingOrders }} / {{ s.orders }}</strong></div><div class="panel"><small>Contas</small><strong>{{ s.customers }}</strong></div><div class="panel"><small>Dispositivos / Projetos</small><strong>{{ s.devices }} / {{ s.projects }}</strong></div></div>
+}
+@if (summaryError()) { <p class="notice">Resumo indisponível. <button (click)="loadSummary()">Atualizar resumo</button></p> }
+@if (tab() === 'settings') { <app-admin-settings /> } @else {
+@if (tab() === 'products') { <section class="panel"><h2>Componentes do catálogo</h2><p class="muted">Cadastre placas, sensores, módulos e acessórios com descrição, preço de venda e quantidade em estoque. Os componentes ativos aparecem no catálogo da loja.</p></section> }
+@if (error() && !pending()) { <p class="error" role="alert">{{ error() }}</p> }
+@if (notice()) { <p class="notice" role="status">{{ notice() }}</p> }
+@if (pending(); as action) { <app-confirm-dialog [message]="action.label" [busy]="busy()" [error]="error()" [destructive]="!!action.remove" (confirmed)="confirm()" (cancelled)="pending.set(null); error.set('')" /> }
+<div class="admin-toolbar"><form (ngSubmit)="searchList()"><label class="sr-only" for="admin-search">Buscar registros</label><input id="admin-search" name="search" [(ngModel)]="search" placeholder="Buscar por nome, código ou ID"><button [disabled]="loading() || busy()">Buscar</button></form>
+@if (tab() === 'products' || tab() === 'devices' || tab() === 'projects') { <button class="primary" [disabled]="busy()" (click)="start()">{{ tab() === 'products' ? 'Cadastrar componente' : tab() === 'devices' ? 'Novo dispositivo' : 'Novo projeto' }}</button> }</div>
+
+@if (editor()) {
+  <section class="panel admin-editor"><div class="row"><h2>{{ tab() === 'products' ? (editingId ? 'Editar componente' : 'Cadastrar componente no catálogo') : (editingId ? 'Editar registro' : 'Novo registro') }}</h2><button [disabled]="busy()" (click)="editor.set(false)">Fechar</button></div>
+  <form #editForm="ngForm" (ngSubmit)="save(editForm)"><fieldset [disabled]="busy()"><div class="form-grid">
+    <label>Nome<input name="name" [(ngModel)]="form.name" required></label>
+    @if (tab() === 'products') {
+      <label>SKU<input name="sku" [(ngModel)]="form.sku" required placeholder="Ex.: ESP32-S3-001"></label><label>Tipo<select name="type" [(ngModel)]="form.type">@for (type of productTypes; track type.value) { <option [value]="type.value">{{ type.label }}</option> }</select></label>
+      <label class="wide">Descrição<textarea name="description" [(ngModel)]="form.description" placeholder="Descreva as características, aplicações e o que acompanha o componente."></textarea></label>
+      <section class="wide image-editor"><h3>Imagens do componente</h3><p class="muted">Cadastre até 5 imagens: uma capa e quatro adicionais. Envie arquivos JPG, PNG ou WebP de até 5 MB cada, ou use links.</p>
+        <label>Enviar imagem<input type="file" accept="image/jpeg,image/png,image/webp" (change)="uploadImage($event)"></label>
+        <label>Link da imagem<input name="imageUrl" [(ngModel)]="form.imageUrl" maxlength="2048" placeholder="https://exemplo.com/imagem.jpg" (ngModelChange)="imageMessage.set('')"></label>
+        @if (uploading()) { <p role="status">Enviando imagem…</p> }
+        @if (imageMessage()) { <p role="status" class="muted">{{ imageMessage() }}</p> }
+        @if (form.imageUrl && validImageUrl(form.imageUrl.trim())) { <div class="image-preview"><app-product-image [src]="form.imageUrl.trim()" [alt]="'Prévia de ' + (form.name || 'componente')" /></div> }
+        @if (form.imageUrl && !validImageUrl(form.imageUrl.trim())) { <p class="error">Informe um link HTTP/HTTPS válido.</p> }
+        @if (form.imageUrl) { <button type="button" (click)="form.imageUrl = ''; imageMessage.set('Imagem removida. Salve o componente para aplicar.')">Remover imagem</button> }
+        @for (url of form.additionalImageUrls; track $index; let i = $index) {
+          <section class="panel">
+            <h4>Imagem {{ i + 2 }}</h4>
+            <label>Enviar imagem {{ i + 2 }}<input type="file" accept="image/jpeg,image/png,image/webp" (change)="uploadImage($event, i)"></label>
+            <label>Link da imagem {{ i + 2 }}<input [name]="'additionalImage' + i" [(ngModel)]="form.additionalImageUrls[i]" maxlength="2048"></label>
+            @if (url && validImageUrl(url.trim())) { <div class="image-preview"><app-product-image [src]="url.trim()" [alt]="'Prévia da imagem ' + (i + 2)" /></div> }
+            <button type="button" (click)="form.additionalImageUrls.splice(i, 1)">Remover imagem {{ i + 2 }}</button>
+          </section>
+        }
+        <button type="button" [disabled]="form.additionalImageUrls.length >= 4 || busy()" (click)="form.additionalImageUrls.push('')">Adicionar outra imagem</button>
+      </section>
+      <label>Preço (R$)<input name="price" type="number" [(ngModel)]="form.price" min="0" step="0.01" required></label><label>Estoque<input name="stock" type="number" [(ngModel)]="form.stock" min="0" step="1" required></label>
+      <label>Fabricante<input name="manufacturer" [(ngModel)]="form.manufacturer"></label><label>Modelo<input name="model" [(ngModel)]="form.model"></label>
+      <label class="wide">Parcelamento no cartão (condição desejada)<select name="installmentFeePayer" [(ngModel)]="form.installmentFeePayer" required><option value="BUYER">Repassar taxas do parcelamento para o cliente</option><option value="SELLER">Oferecer parcelamento sem juros — loja assume as taxas</option></select></label>
+      <p class="notice wide">Esta escolha fica salva no produto. A ativação no pagamento e a divulgação de “sem juros” estão pendentes de integração com as condições da conta Mercado Pago.</p>
+      <label class="check"><input name="active" type="checkbox" [(ngModel)]="form.active"> Produto ativo no catálogo</label><label class="check"><input name="supported" type="checkbox" [(ngModel)]="form.supported"> Suporta programação</label>
+      @if (form.supported) { <label>Plataforma de programação<input name="platform" [(ngModel)]="form.platform"></label><label>Chip<input name="chip" [(ngModel)]="form.chip"></label> }
+      <details class="wide"><summary>Especificações avançadas (opcional)</summary><label>Especificações (JSON)<textarea name="specifications" [(ngModel)]="form.specifications" required></textarea></label></details>
+    } @else {
+      <label>ID do proprietário<input name="ownerId" [(ngModel)]="form.ownerId" required pattern="[a-fA-F0-9]{24}" [readonly]="!!editingId"></label>
+      @if (!editingId) { <div class="wide"><label>Encontrar cliente por nome ou e-mail<input name="ownerSearch" [(ngModel)]="ownerSearch"></label><button type="button" [disabled]="ownerLoading()" (click)="findOwners()">Buscar clientes</button><div class="owner-options">@for (owner of owners(); track owner._id) { <button type="button" (click)="form.ownerId = owner._id">{{ owner.name }} · {{ owner.email }}</button> }</div></div> }
+      @if (tab() === 'devices') {
+        <label>Placa<input name="board" [(ngModel)]="form.board" required></label><label>Modelo<input name="model" [(ngModel)]="form.model"></label><label>Número de série<input name="serial" [(ngModel)]="form.serialNumber"></label><label>Endereço MAC<input name="mac" [(ngModel)]="form.macAddress"></label><label class="wide">Hardware (JSON)<textarea name="hardware" [(ngModel)]="form.hardware" required></textarea></label>
+      } @else {
+        <label>Dispositivo (ID, opcional)<input name="deviceId" [(ngModel)]="form.deviceId" pattern="[a-fA-F0-9]{24}"></label><label>Status<select name="status" [(ngModel)]="form.status"><option value="DRAFT">Rascunho</option><option value="READY">Pronto</option><option value="ARCHIVED">Arquivado</option></select></label><label>Origem<select name="source" [(ngModel)]="form.source"><option value="MANUAL">Manual</option><option value="AI">IA</option><option value="SUPPORT">Suporte</option></select></label><label class="wide">Descrição<textarea name="description" [(ngModel)]="form.description"></textarea></label><label class="wide">Configuração (JSON)<textarea name="configuration" [(ngModel)]="form.configuration" required></textarea></label>
+      }
+    }
+  </div><button class="primary" [disabled]="editForm.invalid || busy()">{{ busy() ? 'Salvando…' : 'Salvar' }}</button></fieldset></form></section>
+}
+
+@if (detail(); as order) { <section class="panel admin-editor"><div class="row"><h2>Pedido #{{ order._id.slice(-8) }}</h2><button (click)="detail.set(null)">Fechar detalhes</button></div><p>{{ order.customer?.name }} · {{ order.customer?.email }}</p><p>{{ order.createdAt | date:'dd/MM/yyyy HH:mm' }} · {{ label(order.status) }}</p>@for (item of order.items; track item.productId) { <div class="detail-item"><div class="row"><strong>{{ item.name }}</strong><strong>{{ item.total | currency:'BRL' }}</strong></div><p>{{ item.sku }} · {{ item.quantity }} × {{ item.unitPrice | currency:'BRL' }}</p>@if (item.programmingRequest.requested) { <p>Programação: {{ item.programmingRequest.type }}</p><p class="requirements">{{ item.programmingRequest.requirements }}</p> }</div> }<strong>Total: {{ order.total | currency:'BRL' }}</strong>@if (order.checkoutProfile; as delivery) { <h3>Dados para entrega</h3><p>{{ delivery.fullName }} · CPF {{ delivery.cpf }}</p><p>{{ delivery.address.street }}, {{ delivery.address.number }} {{ delivery.address.complement }}</p><p>{{ delivery.address.neighborhood }} · {{ delivery.address.city }}/{{ delivery.address.state }} · CEP {{ delivery.address.zipCode }}</p> }</section> }
+
+@if (loading()) { <p role="status">Carregando registros…</p> } @else {
+  <div class="panel admin-table"><table><thead><tr><th>{{ tab() === 'orders' ? 'Pedido / Cliente' : 'Registro' }}</th><th>Informações</th><th>Situação</th><th>Ações</th></tr></thead><tbody>
+  @for (row of rows(); track row._id) { <tr><td><strong>{{ tab() === 'orders' ? '#' + row._id.slice(-8) : row.name }}</strong><small>{{ tab() === 'orders' ? row.customer?.email : row.email || row.sku || row.owner?.email }}</small><small class="record-id">{{ row._id }}</small></td>
+    <td>@switch (tab()) { @case ('products') { <span>{{ row.price | currency:'BRL' }}</span><small>Estoque: {{ row.stock }}</small> } @case ('orders') { <span>{{ row.total | currency:'BRL' }}</span><small>{{ row.createdAt | date:'dd/MM/yyyy HH:mm' }}</small> } @case ('users') { <span>{{ label(row.role) }}</span> } @case ('devices') { <span>{{ row.board }} · {{ row.model }}</span><small>{{ row.serialNumber }}</small> } @case ('projects') { <span>{{ row.description }}</span> } }</td>
+    <td><span class="badge">{{ tab() === 'products' || tab() === 'users' ? (row.active ? 'Ativo' : 'Inativo') : tab() === 'devices' ? 'Cadastrado' : label(row.status) }}</span></td>
+    <td class="actions">@switch (tab()) {
+      @case ('products') { <button [disabled]="busy()" (click)="start(row)">Editar</button><button [disabled]="busy()" (click)="toggle(row)">{{ row.active ? 'Desativar' : 'Ativar' }}</button><button class="danger" [disabled]="busy()" (click)="removeProduct(row)">Excluir</button> }
+      @case ('orders') { <button [disabled]="busy()" (click)="showOrder(row)">Detalhes</button>@for (status of transitions(row.status); track status) { <button [disabled]="busy()" (click)="changeStatus(row, status)">{{ status === 'SHIPPED' ? 'Concluído · gerar etiqueta' : label(status) }}</button> } @if (row.status === 'SHIPPED') { <button [disabled]="busy()" (click)="downloadLabel(row._id)">Baixar etiqueta</button> } }
+      @case ('users') { @if (row.role !== 'ADMIN') { <button [disabled]="busy()" (click)="toggle(row)">{{ row.active ? 'Desativar' : 'Ativar' }}</button> } @else { <small>Acesso definido pelo operador</small> } }
+      @default { <button [disabled]="busy()" (click)="start(row)">Editar</button> }
+    }</td></tr>
+  } @empty { <tr><td colspan="4" class="empty">Nenhum registro encontrado.</td></tr> }
+  </tbody></table></div>
+  <div class="pagination"><button [disabled]="page() <= 1 || busy()" (click)="move(-1)">Anterior</button><span>Página {{ page() }} de {{ pages() }} · {{ total() }} registros</span><button [disabled]="page() >= pages() || busy()" (click)="move(1)">Próxima</button><button [disabled]="busy()" (click)="load()">Atualizar</button></div>
+}
+
+}
+</div></div></div>

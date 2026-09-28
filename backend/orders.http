@@ -1,0 +1,31 @@
+@baseUrl = http://localhost:3000/api
+@token = COLE_O_ACCESS_TOKEN
+@productId = COLE_O_ID_DO_PRODUTO
+@orderId = COLE_O_ID_DO_PEDIDO
+
+### Criar pedido (preço vem do catálogo)
+POST {{baseUrl}}/orders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "productId": "{{productId}}",
+      "quantity": 2,
+      "programmingRequest": {
+        "requested": true,
+        "type": "CUSTOM",
+        "requirements": "Acionar o relé quando o sensor PIR detectar movimento."
+      }
+    }
+  ]
+}
+
+### Listar meus pedidos
+GET {{baseUrl}}/orders
+Authorization: Bearer {{token}}
+
+### Consultar meu pedido
+GET {{baseUrl}}/orders/{{orderId}}
+Authorization: Bearer {{token}}

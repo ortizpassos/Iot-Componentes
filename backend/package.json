@@ -1,0 +1,48 @@
+{
+  "name": "iot-platform-api",
+  "version": "0.1.0",
+  "description": "API central da plataforma IoT",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "nest build",
+    "admin:access": "node scripts/admin-access.cjs",
+    "test:admin": "npm run build && node --test test/admin.test.cjs",
+    "test:shipping": "npm run build && node --test test/shipping.test.cjs test/admin.test.cjs",
+    "test:payments": "npm run build && node --test test/payments.test.cjs",
+    "test:checkout": "npm run build && node --test test/checkout-profile.test.cjs test/orders.test.cjs test/payments.test.cjs",
+    "test:orders": "npm run build && node --test test/orders.test.cjs",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:prod": "node dist/main.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/mongoose": "^11.0.0",
+    "@nestjs/passport": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "bcrypt": "^6.0.0",
+    "bwip-js": "^4.11.4",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "mongoose": "^8.18.0",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "pdfkit": "^0.20.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.0",
+    "@types/bcrypt": "^5.0.2",
+    "@types/node": "^22.0.0",
+    "@types/passport-jwt": "^4.0.1",
+    "@types/pdfkit": "^0.17.6",
+    "typescript": "^5.7.0"
+  }
+}
