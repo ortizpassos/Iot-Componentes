@@ -1,10 +1,11 @@
 import { Component, input, signal } from '@angular/core';
+import { resolveApiUrl } from './core';
 
 @Component({
   selector: 'app-product-image',
   template: `
     @if (src() && failed() !== src()) {
-      <img [src]="src()" [alt]="alt()" loading="lazy" referrerpolicy="no-referrer" (error)="failed.set(src())">
+      <img [src]="imageUrl()" [alt]="alt()" loading="lazy" referrerpolicy="no-referrer" (error)="failed.set(src())">
     } @else {
       <div class="placeholder" role="img" [attr.aria-label]="src() ? 'Imagem indisponível' : 'Produto sem imagem'">
         <span aria-hidden="true">▦</span>@if (src()) { <small>Imagem indisponível</small> }
@@ -15,4 +16,5 @@ import { Component, input, signal } from '@angular/core';
 })
 export class ProductImage {
   src = input(''); alt = input('Imagem do produto'); failed = signal('');
+  imageUrl() { return resolveApiUrl(this.src()); }
 }

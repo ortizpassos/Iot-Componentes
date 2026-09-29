@@ -1,5 +1,6 @@
 import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { StoreConfig, BannerSlide } from './store-config';
+import { resolveApiUrl } from './core';
 
 @Component({ selector: 'app-store-banner', template: `
   <section class="banner" aria-label="Novidades e avisos da loja" aria-roledescription="carrossel" (mouseenter)="hovered.set(true)" (mouseleave)="hovered.set(false)" (focusin)="onFocus($event)">
@@ -7,7 +8,7 @@ import { StoreConfig, BannerSlide } from './store-config';
     @for (slide of slides(); track $index; let i = $index) {
       <div class="slide" [class.with-image]="slide.imageUrl && failedImage() !== slide.imageUrl" role="group" aria-roledescription="slide" [attr.aria-hidden]="i !== index() % slides().length" [attr.aria-label]="(i + 1) + ' de ' + slides().length">
         <div class="copy"><p class="eyebrow">NOVIDADES DA LOJA</p><h2>{{ slide.title }}</h2><p class="description">{{ slide.description }}</p></div>
-        @if (slide.imageUrl && failedImage() !== slide.imageUrl) { <img [src]="slide.imageUrl" alt="" (error)="failedImage.set(slide.imageUrl)"> }
+        @if (slide.imageUrl && failedImage() !== slide.imageUrl) { <img [src]="resolveImageUrl(slide.imageUrl)" alt="" (error)="failedImage.set(slide.imageUrl)"> }
       </div>
     }
     </div>
@@ -46,6 +47,7 @@ import { StoreConfig, BannerSlide } from './store-config';
 export class StoreBanner {
   private store = inject(StoreConfig); private destroy = inject(DestroyRef);
   index = signal(0); hovered = signal(false); paused = signal(window.matchMedia('(prefers-reduced-motion: reduce)').matches); failedImage = signal('');
+  resolveImageUrl(value: string) { return resolveApiUrl(value); }
   slides = computed(() => {
     const value = this.store.value();
     const slides: BannerSlide[] = value.bannerSlides?.length ? [...value.bannerSlides] : [{ title: value.bannerTitle, description: value.bannerDescription, imageUrl: '' }];

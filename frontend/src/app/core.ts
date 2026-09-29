@@ -4,6 +4,14 @@ import { CanActivateFn, Router } from '@angular/router';
 import { catchError, map, of, throwError, timeout } from 'rxjs';
 import type { CheckoutProfile } from './checkout-profile';
 
+const API_BASE_URL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+  ? '/api'
+  : 'https://iot-componentes-1.onrender.com/api';
+
+export function resolveApiUrl(value: string) {
+  return value.startsWith('/api/') ? `${API_BASE_URL}${value.slice(4)}` : value;
+}
+
 export interface User { id?: string; _id?: string; name: string; email: string; role: string }
 export interface Product { datasheetUrl?: string; references?: { label: string; url: string }[]; _id: string; name: string; sku: string; description?: string; imageUrl?: string; additionalImageUrls?: string[]; specifications?: Record<string, unknown>; type: string; price: number; stock: number; manufacturer?: string; model?: string; programming?: { supported?: boolean; platform?: string; chip?: string } }
 export interface Programming { requested: boolean; type: 'NONE' | 'STANDARD' | 'AI' | 'CUSTOM'; requirements?: string }
@@ -38,12 +46,12 @@ export class Cart {
 @Injectable({ providedIn: 'root' })
 export class Api {
   private http = inject(HttpClient);
-  download(path: string, post = false) { return post ? this.http.post(`/api/${path}`, {}, { responseType: 'blob' }) : this.http.get(`/api/${path}`, { responseType: 'blob' }); }
-  get<T>(path: string) { return this.http.get<T>(`/api/${path}`); }
-  post<T>(path: string, body: unknown) { return this.http.post<T>(`/api/${path}`, body); }
-  put<T>(path: string, body: unknown) { return this.http.put<T>(`/api/${path}`, body); }
-  patch<T>(path: string, body: unknown) { return this.http.patch<T>(`/api/${path}`, body); }
-  delete<T>(path: string) { return this.http.delete<T>(`/api/${path}`); }
+  download(path: string, post = false) { return post ? this.http.post(`${API_BASE_URL}/${path}`, {}, { responseType: 'blob' }) : this.http.get(`${API_BASE_URL}/${path}`, { responseType: 'blob' }); }
+  get<T>(path: string) { return this.http.get<T>(`${API_BASE_URL}/${path}`); }
+  post<T>(path: string, body: unknown) { return this.http.post<T>(`${API_BASE_URL}/${path}`, body); }
+  put<T>(path: string, body: unknown) { return this.http.put<T>(`${API_BASE_URL}/${path}`, body); }
+  patch<T>(path: string, body: unknown) { return this.http.patch<T>(`${API_BASE_URL}/${path}`, body); }
+  delete<T>(path: string) { return this.http.delete<T>(`${API_BASE_URL}/${path}`); }
 }
 export function errorMessage(error: unknown): string {
   if (error instanceof HttpErrorResponse) {
@@ -55,8 +63,8 @@ export function errorMessage(error: unknown): string {
 }
 export const apiInterceptor: HttpInterceptorFn = (req, next) => {
   const session = inject(Session); const router = inject(Router); const cart = inject(Cart);
-  if (!req.url.startsWith('/api/')) return next(req);
-  const authenticated = !req.url.startsWith('/api/auth/') && !!session.token();
+  if (!req.url.startsWith(`${API_BASE_URL}/`)) return next(req);
+  const authenticated = !req.url.startsWith(`${API_BASE_URL}/auth/`) && !!session.token();
   const token = session.token();
   return next(authenticated ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }) : req).pipe(
     timeout(15000),
