@@ -134,7 +134,7 @@ export class PaymentPage {
     if (this.busy() || !this.view()?.canPay || (!this.view()?.checkoutProfile && !this.profileReady())) return;
     this.busy.set(true); this.error.set('');
     try { const data = await firstValueFrom(this.api.post<PaymentView>(`payments/${this.id}`, body).pipe(takeUntilDestroyed(this.destroy))); this.view.set(data); }
-    catch (e) { if (!this.destroyed) { this.error.set('Não foi possível concluir a solicitação. Confira os dados e verifique o pagamento antes de tentar novamente.'); this.refresh(); } }
+    catch (e) { if (!this.destroyed) { this.error.set(errorMessage(e)); this.refresh(); } }
     finally { this.busy.set(false); }
   }
   paymentLabel(status?: string) { return ({ pending: 'Aguardando pagamento.', in_process: 'Pagamento em análise.', authorized: 'Pagamento em processamento.', creating: 'Confirmando a solicitação com o Mercado Pago.', refunded: 'Pagamento reembolsado.', charged_back: 'Pagamento contestado.' } as Record<string, string>)[status || ''] || 'Aguardando confirmação do Mercado Pago.'; }

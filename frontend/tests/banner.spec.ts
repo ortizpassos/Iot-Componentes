@@ -41,6 +41,9 @@ test('admin publishes image and notice slides, storefront rotates and pauses', a
   await expect(banner.getByRole('heading', { name: 'Novas placas' })).toBeVisible();
   await expect(banner.locator('img')).toBeVisible();
   await expect(banner.getByRole('button', { name: 'Retomar rotação' })).toBeVisible();
+  await banner.getByRole('button', { name: 'Ir para banner 1', exact: true }).click();
+  await expect(banner.getByRole('heading', { name: 'Aviso aos clientes' })).toBeVisible();
+  await expect(banner.getByRole('button', { name: 'Ir para banner 1', exact: true })).toHaveAttribute('aria-current', 'true');
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

@@ -12,6 +12,7 @@ import { ConfirmDialog } from './confirm-dialog';
 type Tab = 'products' | 'orders' | 'users' | 'devices' | 'projects' | 'settings';
 interface Person { _id: string; name: string; email: string }
 interface Row {
+  datasheetUrl?: string; references?: { label: string; url: string }[];
   additionalImageUrls?: string[];
   installmentFeePayer?: 'BUYER' | 'SELLER';
   _id: string; name?: string; email?: string; role?: string; active?: boolean; sku?: string;
@@ -24,7 +25,7 @@ interface Row {
 interface Page { items: Row[]; total: number; page: number; limit: number }
 interface Summary { products: number; activeProducts: number; orders: number; pendingOrders: number; customers: number; devices: number; projects: number }
 function emptyForm() {
-  return { additionalImageUrls: [] as string[], installmentFeePayer: 'BUYER', name: '', sku: '', type: 'BOARD', price: 0, stock: 0, active: true, description: '', imageUrl: '', manufacturer: '', model: '',
+  return { datasheetUrl: '', references: [] as { label: string; url: string }[], additionalImageUrls: [] as string[], installmentFeePayer: 'BUYER', name: '', sku: '', type: 'BOARD', price: 0, stock: 0, active: true, description: '', imageUrl: '', manufacturer: '', model: '',
     supported: false, platform: '', chip: '', specifications: '{}', ownerId: '', board: 'ESP32', serialNumber: '', macAddress: '', hardware: '{}',
     deviceId: '', source: 'MANUAL', status: 'DRAFT', configuration: '{}' };
 }
@@ -74,7 +75,7 @@ export class AdminPage {
     this.form = emptyForm(); this.editingId = row?._id || ''; this.error.set(''); this.notice.set(''); this.pending.set(null); this.owners.set([]); this.ownerSearch = '';
     if (row) {
       this.form = { ...this.form, name: row.name || '', sku: row.sku || '', type: row.type || 'BOARD', price: row.price || 0, stock: row.stock || 0,
-        additionalImageUrls: [...(row.additionalImageUrls || [])], installmentFeePayer: row.installmentFeePayer || 'BUYER', active: row.active !== false, description: row.description || '', imageUrl: row.imageUrl || '', manufacturer: row.manufacturer || '', model: row.model || '',
+        datasheetUrl: row.datasheetUrl || '', references: (row.references || []).map(ref => ({ ...ref })), additionalImageUrls: [...(row.additionalImageUrls || [])], installmentFeePayer: row.installmentFeePayer || 'BUYER', active: row.active !== false, description: row.description || '', imageUrl: row.imageUrl || '', manufacturer: row.manufacturer || '', model: row.model || '',
         supported: !!row.programming?.supported, platform: row.programming?.platform || '', chip: row.programming?.chip || '', specifications: JSON.stringify(row.specifications || {}, null, 2),
         ownerId: row.owner?._id || '', board: row.board || '', serialNumber: row.serialNumber || '', macAddress: row.macAddress || '', hardware: JSON.stringify(row.hardware || {}, null, 2),
         deviceId: row.device || '', source: row.source || 'MANUAL', status: row.status || 'DRAFT', configuration: JSON.stringify(row.configuration || {}, null, 2) };
@@ -105,6 +106,17 @@ export class AdminPage {
     this.ownerLoading.set(true);
     this.api.get<Page>(`admin/users?limit=20&search=${encodeURIComponent(this.ownerSearch)}`).subscribe({ next: data => { this.owners.set(data.items.filter(u => u.active)); this.ownerLoading.set(false); }, error: e => { this.ownerLoading.set(false); this.fail(e); } });
   }
+  uploadDatasheet(event: Event) {
+    const input = event.target as HTMLInputElement; const file = input.files?.[0]; input.value = '';
+    if (!file || this.busy()) return;
+    if (file.type !== 'application/pdf' || !file.size || file.size > 10 * 1024 * 1024) { this.error.set('Selecione um PDF de até 10 MB.'); return; }
+    const body = new FormData(); body.append('file', file);
+    this.busy.set(true); this.error.set('');
+    this.api.post<{ datasheetUrl: string }>('admin/product-datasheets', body).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: result => { this.form.datasheetUrl = result.datasheetUrl; this.busy.set(false); this.imageMessage.set('Datasheet enviado. Salve o componente para aplicar.'); },
+      error: e => { this.busy.set(false); this.fail(e); },
+    });
+  }
   object(text: string, field: string) {
     let value: unknown; try { value = JSON.parse(text); } catch { throw new Error(`${field}: informe um JSON válido.`); }
     if (!value || Array.isArray(value) || typeof value !== 'object') throw new Error(`${field}: informe um objeto JSON.`);
@@ -120,7 +132,7 @@ export class AdminPage {
         if (!this.validImageUrl(f.imageUrl.trim())) throw new Error('Informe um link HTTP/HTTPS válido para a imagem.');
         if (!f.sku.trim() || !Number.isInteger(f.stock)) throw new Error('Informe o SKU e um estoque inteiro.');
         body = { name: f.name.trim(), sku: f.sku.trim(), type: f.type, price: f.price, stock: f.stock, active: f.active, description: f.description, imageUrl: f.imageUrl.trim(), manufacturer: f.manufacturer, model: f.model,
-          additionalImageUrls: f.additionalImageUrls.map(url => url.trim()), installmentFeePayer: f.installmentFeePayer, specifications: this.object(f.specifications, 'Especificações'), programming: { supported: f.supported, platform: f.platform, chip: f.chip } };
+          datasheetUrl: f.datasheetUrl, references: f.references.map(ref => ({ label: ref.label.trim(), url: ref.url.trim() })), additionalImageUrls: f.additionalImageUrls.map(url => url.trim()), installmentFeePayer: f.installmentFeePayer, specifications: this.object(f.specifications, 'Especificações'), programming: { supported: f.supported, platform: f.platform, chip: f.chip } };
       } else if (this.tab() === 'devices') {
         body = { name: f.name.trim(), ownerId: f.ownerId, board: f.board.trim(), model: f.model, ...(f.serialNumber.trim() ? { serialNumber: f.serialNumber.trim() } : {}), macAddress: f.macAddress, hardware: this.object(f.hardware, 'Hardware') };
       } else {

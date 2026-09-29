@@ -1,3 +1,5 @@
+import { FormsModule } from '@angular/forms';
+import { CATALOG_CATEGORIES } from './app/catalog-categories';
 import { Component, inject, signal } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
@@ -11,11 +13,12 @@ import { Api, Cart, Session, User, apiInterceptor, authGuard, adminGuard } from 
 registerLocaleData(localePt);
 
 @Component({
-  selector: 'app-root', imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  selector: 'app-root', imports: [FormsModule, RouterOutlet, RouterLink, RouterLinkActive],
   template: `
     @if (adminLayout()) { <router-outlet /> } @else {
-    <header class="topbar"><a class="brand" routerLink="/catalogo"><span class="brand-icon">⌘</span>{{ store.value().storeName }}</a><span class="tagline">{{ store.value().tagline }}</span>
-      <div class="account"><a class="cart-link" routerLink="/carrinho" [attr.aria-label]="'Carrinho, ' + cart.totalQuantity() + ' itens'" title="Abrir carrinho"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h3l3 12h11l3-9H6"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg><span class="cart-count" aria-hidden="true">{{ cart.totalQuantity() }}</span></a>@if (session.token()) { <span>{{ session.user()?.name || 'Minha conta' }}</span><button class="text-button" (click)="logout()">Sair</button> } @else { <a routerLink="/login">Entrar / Cadastrar</a> }</div>
+    <header class="topbar"><a class="brand" routerLink="/catalogo"><span class="brand-icon">⌘</span>{{ store.value().storeName }}</a><form class="navbar-search" role="search" (ngSubmit)="searchCatalog()"><label class="sr-only" for="navbar-search">Buscar produtos</label><input id="navbar-search" name="search" [(ngModel)]="searchTerm" placeholder="Buscar produtos, marcas e modelos..." maxlength="200"><button type="submit" aria-label="Buscar"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button></form><span class="tagline">{{ store.value().tagline }}</span>
+      <div class="account"><a class="orders-link" routerLink="/pedidos">Meus pedidos</a><a class="cart-link" routerLink="/carrinho" [attr.aria-label]="'Carrinho, ' + cart.totalQuantity() + ' itens'" title="Abrir carrinho"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h3l3 12h11l3-9H6"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg><span class="cart-count" aria-hidden="true">{{ cart.totalQuantity() }}</span></a>@if (session.token()) { <span>{{ session.user()?.name || 'Minha conta' }}</span><button class="text-button" (click)="logout()">Sair</button> } @else { <a routerLink="/login">Entrar / Cadastrar</a> }</div>
+      <nav class="category-nav" aria-label="Categorias de produtos">@for (category of categories; track category.value) { <a routerLink="/catalogo" [queryParams]="{ categoria: category.value || null, busca: searchTerm || null }" [class.selected]="catalogActive() && selectedCategory() === category.value" [attr.aria-current]="catalogActive() && selectedCategory() === category.value ? 'page' : null">{{ category.label }}</a> }</nav>
     </header>
     <div class="layout"><aside><div class="nav-label">WORKSPACE</div><nav aria-label="Navegação principal">
       <a routerLink="/catalogo" routerLinkActive="active">◈ <span>Catálogo</span></a>
@@ -28,10 +31,13 @@ registerLocaleData(localePt);
   `,
 })
 class App {
+  searchTerm = '';
+  searchCatalog() { void this.router.navigate(['/catalogo'], { queryParams: { busca: this.searchTerm.trim() || null, categoria: this.selectedCategory() || null } }); }
+  categories = CATALOG_CATEGORIES; selectedCategory = signal(''); catalogActive = signal(false);
   session = inject(Session); cart = inject(Cart); private router = inject(Router); private api = inject(Api);
   store = inject(StoreConfig); adminLayout = signal(false);
   constructor() {
-    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => { if (event instanceof NavigationEnd) this.adminLayout.set(event.urlAfterRedirects.split('?')[0] === '/adm'); });
+    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => { if (event instanceof NavigationEnd) { const path = event.urlAfterRedirects.split('?')[0]; this.adminLayout.set(path === '/adm'); this.catalogActive.set(path === '/catalogo'); this.searchTerm = this.router.parseUrl(event.urlAfterRedirects).queryParams['busca'] || ''; const value = this.router.parseUrl(event.urlAfterRedirects).queryParams['categoria'] || ''; this.selectedCategory.set(this.categories.some(category => category.value === value) ? value : ''); } });
     this.store.load();
     if (this.session.token()) this.api.get<User>('users/me').subscribe({ next: user => this.session.user.set(user), error: () => {} });
   }

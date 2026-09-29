@@ -15,9 +15,15 @@ test('product details show full description, gallery and direct purchase', async
   await expect(page.locator('.main-image img')).toHaveAttribute('src', product.additionalImageUrls[3]);
   await page.getByRole('button', { name: 'Adicionar +' }).click();
   await expect(page.locator('.cart-link')).toHaveAccessibleName('Carrinho, 1 itens');
+  for (let i = 1; i < product.stock; i++) await page.getByRole('button', { name: 'Adicionar +' }).click();
+  await expect(page.getByRole('button', { name: 'Adicionar +' })).toBeDisabled();
+  await expect(page.locator('.cart-link')).toHaveAccessibleName('Carrinho, 4 itens');
   await page.getByRole('button', { name: 'Comprar agora' }).click();
   await expect(page).toHaveURL('/finalizar-compra/' + id);
   await expect(page.getByLabel('Quantidade')).toHaveValue('1');
+  await page.getByLabel('Quantidade').fill('5');
+  await expect(page.getByRole('alert')).toContainText('excede o estoque');
+  await expect(page.getByRole('button', { name: 'Entrar para continuar' })).toBeDisabled();
 });
 test('details support direct links on mobile and a missing product', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });

@@ -27,6 +27,9 @@ export class OrdersService {
     for (const input of dto.items) {
       const product = await this.productsService.findById(input.productId);
       if (!product.active) throw new BadRequestException('Produto inativo.');
+      if (!Number.isInteger(input.quantity) || input.quantity < 1 || input.quantity > product.stock || !Number.isInteger(product.stock)) {
+        throw new BadRequestException(`Estoque insuficiente para ${product.name}. Disponível: ${product.stock || 0} unidade(s).`);
+      }
       const request = input.programmingRequest;
       const requested = request?.requested ?? false;
       const type = request?.type ?? ProgrammingType.NONE;

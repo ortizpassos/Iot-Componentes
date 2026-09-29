@@ -7,6 +7,7 @@ import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-use
 import { CreatePaymentDto } from './payment.dto';
 import { MercadoPagoService } from './mercado-pago.service';
 import { PaymentsService } from './payments.service';
+import { ProductsModule } from '../products/products.module';
 
 @Controller('payments')
 export class PaymentsController {
@@ -25,5 +26,5 @@ export class PaymentsController {
   @Post('notifications/mercadopago') @HttpCode(200)
   webhook(@Query('data.id') id: string, @Headers('x-request-id') requestId: string, @Headers('x-signature') signature: string) { return this.payments.webhook(id, requestId, signature); }
 }
-@Module({ imports: [UsersModule, MongooseModule.forFeature([{ name: Order.name, schema: OrderSchema }])], controllers: [PaymentsController], providers: [PaymentsService, MercadoPagoService] })
+@Module({ imports: [ProductsModule, UsersModule, MongooseModule.forFeature([{ name: Order.name, schema: OrderSchema }])], controllers: [PaymentsController], providers: [PaymentsService, MercadoPagoService] })
 export class PaymentsModule {}

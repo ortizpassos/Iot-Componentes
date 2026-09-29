@@ -1,7 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsNotEmpty, IsNumber, IsObject,
-  IsOptional, IsString, Min, ValidateNested,
+  IsOptional, IsString, IsUrl, Matches, MaxLength, Min, ValidateNested,
 } from 'class-validator';
 import { InstallmentFeePayer, ProductType } from '../schemas/product.schema';
 import { IsProductImageUrl } from '../image-url.validator';
@@ -20,7 +20,24 @@ export class ProductProgrammingDto {
   chip?: string;
 }
 
+export class ProductReferenceDto {
+  @IsString() @IsNotEmpty() @MaxLength(100)
+  label!: string;
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true }) @MaxLength(2048)
+  url!: string;
+}
+
 export class CreateProductDto {
+  @IsOptional()
+  @Matches(/^(|\/api\/product-datasheets\/[a-f0-9-]{36}\.pdf)$/)
+  datasheetUrl?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => ProductReferenceDto)
+  references?: ProductReferenceDto[];
   @IsOptional()
   @IsEnum(InstallmentFeePayer)
   installmentFeePayer?: InstallmentFeePayer;

@@ -3,6 +3,25 @@ import { profile } from './checkout-fixture';
 const id = '507f1f77bcf86cd799439012';
 const product = { _id: id, name: 'ESP32-S3 DevKit', sku: 'ESP32-001', type: 'BOARD', price: 89.9, stock: 20, programming: { supported: true } };
 const user = { id: '507f1f77bcf86cd799439011', name: 'Eduardo', email: 'eduardo@teste.com', role: 'CUSTOMER' };
+test('navbar categories filter the catalog and survive reload', async ({ page }) => {
+  await page.route('**/api/products', route => route.fulfill({ json: [product, { ...product, _id: 'sensor', name: 'Sensor teste', type: 'SENSOR' }] }));
+  await page.goto('/catalogo');
+  const categories = page.getByRole('navigation', { name: 'Categorias de produtos' });
+  await categories.getByRole('link', { name: 'Sensores', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Sensor teste' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: product.name })).toHaveCount(0);
+  await page.reload();
+  await expect(categories.getByRole('link', { name: 'Sensores', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('heading', { name: product.name })).toHaveCount(0);
+  await categories.getByRole('link', { name: 'Todos', exact: true }).click();
+  await expect(page.getByRole('heading', { name: product.name })).toBeVisible();
+  await page.getByLabel('Buscar produtos', { exact: true }).fill('Sensor teste');
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Sensor teste' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: product.name })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByLabel('Buscar produtos', { exact: true })).toHaveValue('Sensor teste');
+});
 test('buy now checks out only the selected item and preserves the cart through login', async ({ page }) => {
   const other = { ...product, _id: 'other-product', name: 'Outro produto' };
   let submitted: any;

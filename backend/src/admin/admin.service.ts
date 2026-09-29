@@ -91,7 +91,7 @@ export class AdminService {
     if (order.status !== OrderStatus.PAID) throw new ConflictException('Somente pedidos pagos podem ser enviados.');
     // Generate successfully before changing status; retries can download again without another transition.
     const sender = await this.settings.getShippingSender();
-    const pdf = await shippingLabel(id, order.checkoutProfile, sender);
+    const pdf = await shippingLabel(id, order.checkoutProfile, sender, order.items);
     const updated = await this.orders.updateOne({ _id: this.id(id), status: OrderStatus.PAID }, { $set: { status: OrderStatus.SHIPPED, shippedAt: new Date(), shippingSender: sender } });
     if (!updated.modifiedCount) {
       const current = await this.order(id);
@@ -103,7 +103,7 @@ export class AdminService {
   async label(id: string) {
     const order = await this.order(id);
     if (order.status !== OrderStatus.SHIPPED) throw new ConflictException('A etiqueta está disponível após confirmar o envio.');
-    return shippingLabel(id, order.checkoutProfile, order.shippingSender || await this.settings.getShippingSender());
+    return shippingLabel(id, order.checkoutProfile, order.shippingSender || await this.settings.getShippingSender(), order.items);
   }
   listUsers(query: AdminListDto) { return this.list(this.users, query, ['name', 'email', 'role']); }
   async userActive(id: string, active: boolean) {

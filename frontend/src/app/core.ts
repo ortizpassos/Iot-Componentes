@@ -5,7 +5,7 @@ import { catchError, map, of, throwError, timeout } from 'rxjs';
 import type { CheckoutProfile } from './checkout-profile';
 
 export interface User { id?: string; _id?: string; name: string; email: string; role: string }
-export interface Product { _id: string; name: string; sku: string; description?: string; imageUrl?: string; additionalImageUrls?: string[]; specifications?: Record<string, unknown>; type: string; price: number; stock: number; manufacturer?: string; model?: string; programming?: { supported?: boolean; platform?: string; chip?: string } }
+export interface Product { datasheetUrl?: string; references?: { label: string; url: string }[]; _id: string; name: string; sku: string; description?: string; imageUrl?: string; additionalImageUrls?: string[]; specifications?: Record<string, unknown>; type: string; price: number; stock: number; manufacturer?: string; model?: string; programming?: { supported?: boolean; platform?: string; chip?: string } }
 export interface Programming { requested: boolean; type: 'NONE' | 'STANDARD' | 'AI' | 'CUSTOM'; requirements?: string }
 export interface Order { _id: string; status: string; total: number; createdAt: string; checkoutProfile?: CheckoutProfile; items: { productId: string; name: string; sku: string; quantity: number; unitPrice: number; total: number; programmingRequest: Programming }[] }
 export interface Device { _id: string; name: string; board: string; model?: string; online: boolean }
@@ -24,10 +24,13 @@ export class Cart {
   lines = signal<CartLine[]>([]);
   totalQuantity = computed(() => this.lines().reduce((sum, line) => sum + (Number.isInteger(line.quantity) && line.quantity > 0 ? line.quantity : 0), 0));
   setQuantity(id: string, quantity: number) { this.lines.update(lines => lines.map(line => line.product._id === id ? { ...line, quantity } : line)); }
+  canAdd(product: Product) { return product.stock > 0 && (this.lines().find(line => line.product._id === product._id)?.quantity || 0) < Math.min(10000, product.stock); }
   add(product: Product) {
+    if (!this.canAdd(product)) return false;
     this.lines.update(lines => lines.some(l => l.product._id === product._id)
-      ? lines.map(l => l.product._id === product._id ? { ...l, quantity: Math.min(10000, l.quantity + 1) } : l)
+      ? lines.map(l => l.product._id === product._id ? { ...l, quantity: Math.min(10000, product.stock, l.quantity + 1) } : l)
       : [...lines, { product, quantity: 1, type: 'NONE', requirements: '' }]);
+    return true;
   }
   remove(id: string) { this.lines.update(lines => lines.filter(l => l.product._id !== id)); }
   clear() { this.lines.set([]); }

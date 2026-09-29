@@ -5,13 +5,15 @@ import { IsDefined, IsNotEmpty, IsString, MaxLength, ValidateNested, validateSyn
 import { Type } from 'class-transformer';
 import { toBuffer } from 'bwip-js';
 import { AddressDto, CheckoutProfileDto } from '../users/checkout-profile.dto';
+import { contentDeclaration, DeclarationItem } from './content-declaration';
 
 export class ShippingSender {
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString() @IsNotEmpty() @MaxLength(150) fullName!: string;
   @IsDefined() @ValidateNested() @Type(() => AddressDto) address!: AddressDto;
 }
-export async function shippingLabel(id: string, profile: CheckoutProfileDto | undefined, sender?: ShippingSender): Promise<Buffer> {
+export async function shippingLabel(id: string, profile: CheckoutProfileDto | undefined, sender?: ShippingSender, items?: DeclarationItem[]): Promise<Buffer> {
+  if (!items?.length || items.some(item => !item.name || item.name.length > 1000 || !Number.isInteger(item.quantity) || item.quantity < 1 || !Number.isFinite(item.total) || item.total < 0)) throw new BadRequestException('O pedido não possui itens válidos para a declaração de conteúdo.');
   if (!profile || validateSync(plainToInstance(CheckoutProfileDto, profile)).length) {
     throw new BadRequestException('O pedido não possui dados de entrega completos. Confira nome, CPF e endereço antes do envio.');
   }
@@ -43,6 +45,7 @@ export async function shippingLabel(id: string, profile: CheckoutProfileDto | un
   doc.rect(14, 266, 255.46, 138).stroke();
   doc.font('Helvetica-Bold').fontSize(15).text('REMETENTE', 28, 284);
   drawAddress(sender, 313, 77);
+  contentDeclaration(doc, id, profile, sender, items);
   doc.end();
   return output;
 }

@@ -13,6 +13,7 @@ test('admin saves image links, uploads replacements and removes the image', asyn
     const request = route.request(); const path = new URL(request.url()).pathname;
     if (path === '/api/users/me') return route.fulfill({ json: { name: 'Admin', role: 'ADMIN' } });
     if (path === '/api/admin/access') return route.fulfill({ json: { allowed: true } });
+    if (path === '/api/admin/product-datasheets') return route.fulfill({ json: { datasheetUrl: '/api/product-datasheets/00000000-0000-0000-0000-000000000001.pdf' } });
     if (path === '/api/admin/summary') return route.fulfill({ json: { products: 1, activeProducts: 1, orders: 0, pendingOrders: 0, customers: 1, devices: 0, projects: 0 } });
     if (path === '/api/admin/product-images') {
       expect(request.headers()['authorization']).toBe('Bearer admin-token');
@@ -32,13 +33,21 @@ test('admin saves image links, uploads replacements and removes the image', asyn
   await page.getByRole('button', { name: 'Cadastrar componente' }).click();
   await page.getByLabel('Nome', { exact: true }).fill('Placa com foto');
   await page.getByLabel('SKU', { exact: true }).fill('IMAGE-001');
+  await page.getByLabel('Enviar datasheet PDF (até 10 MB)').setInputFiles({ name: 'datasheet.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF') });
+  await expect(page.getByRole('link', { name: 'Baixar datasheet cadastrado' })).toBeVisible();
+  await page.getByRole('button', { name: 'Adicionar referência' }).click();
+  await page.getByLabel('Título da referência 1').fill('Fabricante');
+  await page.getByLabel('Link da referência 1').fill('https://example.com/manual');
   await page.getByLabel('Link da imagem', { exact: true }).fill('https://images.example.com/product.png');
   await expect(page.getByRole('img', { name: 'Prévia de Placa com foto' })).toBeVisible();
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(page.getByText('Alteração salva.')).toBeVisible();
   expect(saved.imageUrl).toBe('https://images.example.com/product.png');
+  expect(saved.datasheetUrl).toMatch(/\.pdf$/);
+  expect(saved.references).toEqual([{ label: 'Fabricante', url: 'https://example.com/manual' }]);
   await page.getByRole('button', { name: 'Editar', exact: true }).click();
   await expect(page.getByLabel('Link da imagem', { exact: true })).toHaveValue(saved.imageUrl);
+  await expect(page.getByLabel('Link da referência 1')).toHaveValue('https://example.com/manual');
   const file = { name: 'component.png', mimeType: 'image/png', buffer: png };
   await page.getByLabel('Enviar imagem', { exact: true }).setInputFiles(file);
   await expect(page.getByRole('alert')).toContainText('Envie uma imagem válida.');

@@ -19,6 +19,11 @@ export enum ProductType {
 
 @Schema({ timestamps: true })
 export class Product {
+  @Prop({ default: '' })
+  datasheetUrl!: string;
+
+  @Prop({ type: [{ _id: false, label: String, url: String }], default: [] })
+  references!: { label: string; url: string }[];
   // Requested commercial policy; does not override Mercado Pago account pricing.
   @Prop({ type: String, enum: InstallmentFeePayer, default: InstallmentFeePayer.BUYER })
   installmentFeePayer!: InstallmentFeePayer;

@@ -12,7 +12,7 @@ const productId = '507f1f77bcf86cd799439012';
 const orderId = '507f1f77bcf86cd799439013';
 const body = (extra = {}) => ({ items: [{ productId, quantity: 3, ...extra }] });
 function fixture() {
-  const product = { name: 'ESP32', sku: 'ESP-001', price: 89.9, active: true, programming: { supported: true } };
+  const product = { name: 'ESP32', sku: 'ESP-001', price: 89.9, stock: 20, active: true, programming: { supported: true } };
   const saved = [];
   const service = new OrdersService({
     create: async value => { saved.push(value); return value; },
@@ -49,6 +49,10 @@ test('snapshot and totals survive catalog changes', async () => {
 
 test('invalid requests do not persist orders', async () => {
   const { service, product, saved } = fixture();
+  await assert.rejects(service.create(customer, body({ quantity: 21 })), e => e.getStatus() === 400);
+  product.stock = 0;
+  await assert.rejects(service.create(customer, body({ quantity: 1 })), e => e.getStatus() === 400);
+  product.stock = 20;
   await assert.rejects(service.create(customer, { items: [...body().items, ...body().items] }));
   for (const request of [
     { requested: true, type: 'NONE' },

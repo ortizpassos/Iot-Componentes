@@ -7,6 +7,7 @@ import { Order, OrderStatus } from '../orders/schemas/order.schema';
 import { CreatePaymentDto } from './payment.dto';
 import { MercadoPagoService, ProviderError, ProviderPayment } from './mercado-pago.service';
 import { UsersService } from '../users/users.service';
+import { ProductsService } from '../products/products.service';
 
 export const RETRYABLE = ['rejected', 'cancelled', 'failed'];
 export function eligible(order: Order) {
@@ -21,7 +22,7 @@ export function verifySignature(secret: string, id: string, requestId: string, s
 }
 @Injectable()
 export class PaymentsService {
-  constructor(@InjectModel(Order.name) private readonly orders: Model<Order>, private readonly provider: MercadoPagoService, private readonly config: ConfigService, private readonly users: UsersService) {}
+  constructor(@InjectModel(Order.name) private readonly orders: Model<Order>, private readonly provider: MercadoPagoService, private readonly config: ConfigService, private readonly users: UsersService, private readonly products: ProductsService) {}
   async savedCard(customer: string) {
     const user = await this.users.checkout(customer);
     return user.defaultCard && user.mercadoPagoCustomerId
@@ -57,6 +58,10 @@ export class PaymentsService {
     const order = await this.owned(customer, id);
     if (!eligible(order)) throw new ConflictException('Este pedido não está disponível para pagamento online.');
     if (order.payment && !RETRYABLE.includes(order.payment.status)) return this.status(customer, id);
+    for (const item of order.items) {
+      const product = await this.products.findById(String(item.productId));
+      if (!product.active || !Number.isInteger(product.stock) || !Number.isInteger(item.quantity) || item.quantity > product.stock || item.quantity < 1) throw new ConflictException(`Estoque insuficiente para ${item.name || product.name}. Revise o pedido antes de pagar.`);
+    }
     const checkoutProfile = order.checkoutProfile || await this.users.requireCheckoutProfile(customer);
     if (dto.method !== 'card' && (dto.saveCard || dto.useSavedCard)) throw new BadRequestException('Esta opção está disponível somente para cartão.');
     const saved = dto.useSavedCard ? await this.savedCard(customer) : null;
@@ -70,7 +75,8 @@ export class PaymentsService {
     if (!claimed) return this.status(customer, id);
     const notificationUrl = this.config.get<string>('MP_NOTIFICATION_URL');
     const body = {
-      transaction_amount: order.total, description: `Pedido ${id}`,
+      transaction_amount: order.total, description: `IOT-Componentes - Pedido ${id}`,
+      ...(dto.method === 'card' ? { statement_descriptor: 'IOT-COMPONENT' } : {}),
       external_reference: `${id}:${key}`, payer: saved ? { ...dto.payer, type: 'customer', id: saved.customerId } : dto.payer,
       ...(notificationUrl ? { notification_url: notificationUrl } : {}),
       ...(dto.method === 'pix' ? { payment_method_id: 'pix' } : { token: dto.token, payment_method_id: dto.paymentMethodId, installments: dto.installments, ...(dto.issuerId ? { issuer_id: dto.issuerId } : {}) }),

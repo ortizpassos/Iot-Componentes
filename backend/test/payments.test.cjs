@@ -14,7 +14,7 @@ test('payment lookup casts authenticated customer IDs and preserves ownership', 
   const { OrderSchema } = require('../dist/orders/schemas/order.schema');
   const connection = mongoose.createConnection();
   const model = connection.model('Order', OrderSchema);
-  const stored = { _id: new mongoose.Types.ObjectId(id), customer: new mongoose.Types.ObjectId(customer), status: 'PENDING', total: 89.9, items: [{ programmingRequest: { requested: false, type: 'NONE' } }] };
+  const stored = { _id: new mongoose.Types.ObjectId(id), customer: new mongoose.Types.ObjectId(customer), status: 'PENDING', total: 89.9, items: [{ productId: id, quantity: 1, name: 'Sensor', programmingRequest: { requested: false, type: 'NONE' } }] };
   model.collection.findOne = async filter => {
     assert.ok(filter._id instanceof mongoose.Types.ObjectId);
     assert.ok(filter.customer instanceof mongoose.Types.ObjectId);
@@ -29,7 +29,7 @@ test('payment lookup casts authenticated customer IDs and preserves ownership', 
   }
 });
 function fixture() {
-  const state = { _id: id, customer, status: 'PENDING', total: 89.9, items: [{ programmingRequest: { requested: false, type: 'NONE' } }] };
+  const state = { _id: id, customer, status: 'PENDING', total: 89.9, items: [{ productId: id, quantity: 1, name: 'Sensor', programmingRequest: { requested: false, type: 'NONE' } }] };
   const field = (obj, key) => key.split('.').reduce((o, k) => o?.[k], obj);
   const match = filter => Object.entries(filter).every(([key, value]) => {
     if (key === '$or') return value.some(match);
@@ -59,7 +59,7 @@ function fixture() {
     checkout: async () => ({ email: 'account@example.com', mercadoPagoCustomerId: 'owned-customer', defaultCard: { id: 'owned-card' } }),
     saveDefaultCard: async () => {},
   };
-  const service = new PaymentsService(model, provider, { get: key => key === 'MP_WEBHOOK_SECRET' ? 'test-secret' : undefined }, users);
+  const service = new PaymentsService(model, provider, { get: key => key === 'MP_WEBHOOK_SECRET' ? 'test-secret' : undefined }, users, { findById: async () => ({ active: true, stock: 20 }) });
   return { service, state, provider, users, created: () => created, body: () => body, remote: () => remote };
 }
 
@@ -91,6 +91,8 @@ test('saved card payments use only the authenticated customer provider ID', asyn
   const f = fixture();
   await f.service.create(customer, id, { ...dto, method: 'card', token: 'new-cvv-token', paymentMethodId: 'visa', installments: 1, useSavedCard: true });
   assert.equal(f.body().payer.id, 'owned-customer'); assert.equal(f.body().payer.type, 'customer');
+  assert.equal(f.body().statement_descriptor, 'IOT-COMPONENT');
+  assert.ok(f.body().description.startsWith('IOT-Componentes - Pedido '));
   const g = fixture(); g.users.checkout = async () => ({ email: 'other@example.com' });
   await assert.rejects(g.service.create(customer, id, { ...dto, method: 'card', token: 'x', paymentMethodId: 'visa', installments: 1, useSavedCard: true }), e => e.getStatus() === 400);
   assert.equal(g.created(), 0);
@@ -113,6 +115,7 @@ test('server total and ownership govern payment, concurrent submissions create o
   await assert.rejects(f.service.create('other', id, dto), e => e.getStatus() === 404);
   const responses = await Promise.all([f.service.create(customer, id, dto), f.service.create(customer, id, dto)]);
   assert.equal(f.created(), 1); assert.equal(f.body().transaction_amount, 89.9);
+  assert.equal(f.body().statement_descriptor, undefined);
   assert.equal(responses[0].payment.qrCode, 'pix-code'); assert.equal(f.state.status, 'PENDING');
   await f.service.create(customer, id, dto); assert.equal(f.created(), 1);
   f.remote().status = 'approved'; f.remote().date_last_updated = '2026-09-25T12:01:00Z';
@@ -173,4 +176,10 @@ test('failed cancellation or approval during switch never enables another charge
   f.remote().status = 'approved';
   const result = await f.service.changeMethod(customer, id);
   assert.equal(result.orderStatus, 'PAID'); assert.equal(result.canPay, false);
+});
+
+test('stock changes block payment before creating a provider charge', async () => {
+ const f = fixture(); f.state.items[0].quantity = 21;
+ await assert.rejects(f.service.create(customer, id, dto), e => e.getStatus() === 409);
+ assert.equal(f.created(), 0); assert.equal(f.state.payment, undefined);
 });

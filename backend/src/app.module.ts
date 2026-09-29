@@ -12,6 +12,7 @@ import { AdminModule } from './admin/admin.module';
 import { SettingsModule } from './settings/settings.module';
 import { ProductImagesModule } from './product-images/product-images.module';
 import { PaymentsModule } from './payments/payments.module';
+import { ProductDatasheetsModule } from './product-images/product-datasheets.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { PaymentsModule } from './payments/payments.module';
     AdminModule,
     SettingsModule,
     ProductImagesModule,
+    ProductDatasheetsModule,
     PaymentsModule,
   ],
   controllers: [HealthController],
