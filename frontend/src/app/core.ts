@@ -6,7 +6,7 @@ import type { CheckoutProfile } from './checkout-profile';
 
 const API_BASE_URL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
   ? '/api'
-  : 'https://iot-componentes-1.onrender.com/api';
+  : 'https://iot-componentes-bo23.onrender.com/api';
 
 export function resolveApiUrl(value: string) {
   return value.startsWith('/api/') ? `${API_BASE_URL}${value.slice(4)}` : value;
