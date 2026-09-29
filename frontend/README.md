@@ -33,6 +33,25 @@ Os cenários administrativos também verificam bloqueio de clientes comuns, aus�
 
 ## Publicação
 
+### Render
+
+O `render.yaml` da raiz inclui a API (Web Service) e o frontend (Static Site). A página `/adm` deve ser aberta no endereço do **frontend**; o backend serve somente `/api/*`.
+
+Para um Static Site criado manualmente, configure:
+
+- Root Directory: `frontend`
+- Build Command: `npm ci && npm run build`
+- Publish Directory: `dist/web/browser`
+- Redirects/Rewrites: Source `/*`, Destination `/index.html`, Action **Rewrite**.
+
+A regra permite abrir `/adm` diretamente e atualizar a página sem receber 404. Alterar o YAML local não atualiza serviços criados manualmente; nesses casos, aplique a regra no painel do Render. Referência: [rewrites no Render](https://render.com/docs/redirects-rewrites).
+
+O frontend publicado usa a API `https://iot-componentes-bo23.onrender.com/api`, definida em `src/app/core.ts`. Se o backend tiver outro endereço, atualize essa constante antes de compilar e publicar.
+
+Se a página abrir, mas mostrar **Acesso restrito**, verifique a permissão da conta no banco usado pela API publicada. O cadastro público cria contas CUSTOMER; para autorizar uma conta existente, execute no backend conectado ao mesmo MongoDB `npm run admin:access -- grant usuario@exemplo.com`. A permissão concedida no banco local não se transfere automaticamente para o Atlas.
+
+Se a API estiver indisponível, confira os logs do backend e a variável `MONGODB_URI` no Render. O marcador `<db_password>` da URI do Atlas precisa ser substituído pela senha real (com caracteres especiais codificados na URL); mantenha também o nome do banco correto no caminho da URI. Não coloque essa credencial no frontend nem no repositório.
+
 Para cadastrar componentes: entre em `/adm`, abra **Produtos** e clique em **Cadastrar componente**. Informe nome, SKU, tipo, descrição, preço em reais e estoque. Mantenha **Produto ativo no catálogo** marcado para exibir o item na loja. Os mesmos dados podem ser alterados no botão **Editar**; especificações avançadas são opcionais.
 
 Em **Imagem do componente**, use **Enviar imagem** (JPG, PNG ou WebP de até 5 MB) ou preencha **Link da imagem** com uma URL HTTP/HTTPS direta. Confira a prévia e clique em **Salvar**. Na edição, é possível substituir ou remover a imagem. Se um link deixar de funcionar, o catálogo exibe um marcador de imagem indisponível. Links externos dependem do servidor de origem; prefira HTTPS quando a loja estiver publicada em HTTPS.

@@ -15,12 +15,12 @@ function fixture(status = 'PAID') {
   }, {}, {}, {}, { getShippingSender: async () => structuredClone(sender) });
   return { service, state, changes: () => changes };
 }
-test('paid order produces a two-page PDF with snapshot address and transitions once, including retries', async () => {
+test('paid order produces a single-page PDF with snapshot address and transitions once, including retries', async () => {
   const f = fixture();
   const [pdf, retry] = await Promise.all([f.service.shipOrder(id), f.service.shipOrder(id)]);
   assert.equal(pdf.subarray(0, 5).toString(), '%PDF-'); assert.equal(retry.subarray(0, 5).toString(), '%PDF-');
   assert.equal(f.state.status, 'SHIPPED'); assert.ok(f.state.shippedAt instanceof Date); assert.equal(f.changes(), 1);
-  const source = pdf.toString('latin1'); assert.match(source, /\/Count 2\b/); assert.match(source, /\/MediaBox \[0 0 283\.46 425\.2\]/);
+  const source = pdf.toString('latin1'); assert.match(source, /\/Count 1\b/); assert.match(source, /\/MediaBox \[0 0 595\.28 841\.89\]/);
   let decoded = '';
   for (const match of source.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
     try { const stream = inflateSync(Buffer.from(match[1], 'latin1')).toString('latin1'); for (const hex of stream.matchAll(/<([0-9a-f]+)>/gi)) decoded += Buffer.from(hex[1], 'hex').toString('latin1'); } catch {}
@@ -48,7 +48,7 @@ test('concurrent cancellation prevents shipping, and long delivery fields fit th
   await assert.rejects(f.service.shipOrder(id), e => e.getStatus() === 409); assert.equal(f.state.status, 'CANCELLED');
   const long = structuredClone(profile); long.fullName = 'Nome '.repeat(30).trim();
   long.address.street = 'Rua '.repeat(37); for (const field of ['complement', 'neighborhood', 'city']) long.address[field] = 'Texto '.repeat(16);
-  const pdf = await shippingLabel(id, long, sender, [{ name: 'Sensor', quantity: 1, total: 10 }]); assert.match(pdf.toString('latin1'), /\/Count 2\b/);
+  const pdf = await shippingLabel(id, long, sender, [{ name: 'Sensor', quantity: 1, total: 10 }]); assert.match(pdf.toString('latin1'), /\/Count 1\b/);
 });
 
 test('missing sender blocks shipping without changing order status', async () => {
@@ -60,7 +60,7 @@ test('missing sender blocks shipping without changing order status', async () =>
 test('large orders continue on additional declaration pages and invalid items block shipping', async () => {
   const items = Array.from({ length: 40 }, (_, index) => ({ name: `Componente ${index + 1}`, quantity: 1, total: 10 }));
   const pdf = await shippingLabel(id, profile, sender, items);
-  assert.match(pdf.toString('latin1'), /\/Count 5\b/);
+  assert.match(pdf.toString('latin1'), /\/Count 3\b/);
   const f = fixture(); f.state.items = [];
   await assert.rejects(f.service.shipOrder(id), e => e.getStatus() === 400);
   assert.equal(f.changes(), 0);

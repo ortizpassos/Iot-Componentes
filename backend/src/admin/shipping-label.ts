@@ -19,7 +19,7 @@ export async function shippingLabel(id: string, profile: CheckoutProfileDto | un
   }
   if (!sender || validateSync(plainToInstance(ShippingSender, sender)).length) throw new BadRequestException('Cadastre os dados da loja em ADM → Configurações → Remetente das etiquetas antes de gerar a etiqueta.');
   const barcode = await toBuffer({ bcid: 'code128', text: profile.address.zipCode, scale: 3, height: 16, includetext: false, paddingwidth: 12, backgroundcolor: 'FFFFFF' });
-  const doc = new PDFDocument({ size: [283.46, 425.2], margin: 14, bufferPages: true, info: { Title: `Etiqueta de envio - ${id}` } });
+  const doc = new PDFDocument({ size: 'A4', margin: 24, bufferPages: true, info: { Title: `Etiqueta de envio - ${id}` } });
   const output = new Promise<Buffer>((resolve, reject) => {
     const chunks: Buffer[] = [];
     doc.on('data', chunk => chunks.push(chunk)); doc.on('error', reject); doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -30,21 +30,23 @@ export async function shippingLabel(id: string, profile: CheckoutProfileDto | un
     const a = person.address;
     const name = clean(person.fullName).toLocaleUpperCase('pt-BR');
     const address = [`${a.street}, ${a.number}${a.complement ? ' - ' + a.complement : ''}`, `${a.neighborhood} - ${a.city} - ${a.state}`, `CEP: ${zip(a.zipCode)}`].map(clean).join('\n');
-    const width = 227;
-    let size = 10;
+    const width = doc.page.width - 72;
+    let size = 14;
     const height = () => doc.font('Helvetica-Bold').fontSize(size).heightOfString(name, { width }) + 4 + doc.font('Helvetica').fontSize(size).heightOfString(address, { width, lineGap: 2 });
     while (size > 6 && height() > available) size -= .5;
-    doc.font('Helvetica-Bold').fontSize(size).text(name, 28, top, { width });
+    doc.font('Helvetica-Bold').fontSize(size).text(name, 36, top, { width });
     doc.moveDown(.3).font('Helvetica').text(address, { width, lineGap: 2 });
   };
-  doc.lineWidth(.6).rect(14, 18, 255.46, 228).stroke();
-  doc.font('Helvetica-Bold').fontSize(15).text('DESTINATÁRIO', 28, 36);
-  drawAddress(profile, 66, 108);
-  doc.image(barcode, 66, 182, { width: 151, height: 40 });
-  doc.font('Helvetica').fontSize(9).text(zip(profile.address.zipCode), 28, 228, { width: 227, align: 'center' });
-  doc.rect(14, 266, 255.46, 138).stroke();
-  doc.font('Helvetica-Bold').fontSize(15).text('REMETENTE', 28, 284);
-  drawAddress(sender, 313, 77);
+  // Half of an A4 portrait sheet, with 24 pt print margins.
+  const boxWidth = doc.page.width - 48;
+  doc.lineWidth(.8).rect(24, 24, boxWidth, 224).stroke();
+  doc.font('Helvetica-Bold').fontSize(20).text('DESTINATÁRIO', 36, 38);
+  drawAddress(profile, 70, 100);
+  doc.image(barcode, (doc.page.width - 220) / 2, 180, { width: 220, height: 43 });
+  doc.font('Helvetica').fontSize(12).text(zip(profile.address.zipCode), 36, 228, { width: doc.page.width - 72, align: 'center' });
+  doc.rect(24, 260, boxWidth, doc.page.height / 2 - 284).stroke();
+  doc.font('Helvetica-Bold').fontSize(20).text('REMETENTE', 36, 274);
+  drawAddress(sender, 307, 78);
   contentDeclaration(doc, id, profile, sender, items);
   doc.end();
   return output;
