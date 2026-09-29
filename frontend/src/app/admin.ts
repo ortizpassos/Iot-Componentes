@@ -1,3 +1,4 @@
+import { Sidebar } from './sidebar';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CurrencyPipe, DatePipe } from '@angular/common';
@@ -23,14 +24,14 @@ interface Row {
   device?: string; source?: string; configuration?: Record<string, unknown>;
 }
 interface Page { items: Row[]; total: number; page: number; limit: number }
-interface Summary { products: number; activeProducts: number; orders: number; pendingOrders: number; customers: number; devices: number; projects: number }
+interface Summary { products: number; activeProducts: number; orders: number; pendingOrders: number; customers: number; admins: number; devices: number; projects: number }
 function emptyForm() {
   return { datasheetUrl: '', references: [] as { label: string; url: string }[], additionalImageUrls: [] as string[], installmentFeePayer: 'BUYER', name: '', sku: '', type: 'BOARD', price: 0, stock: 0, active: true, description: '', imageUrl: '', manufacturer: '', model: '',
     supported: false, platform: '', chip: '', specifications: '{}', ownerId: '', board: 'ESP32', serialNumber: '', macAddress: '', hardware: '{}',
     deviceId: '', source: 'MANUAL', status: 'DRAFT', configuration: '{}' };
 }
 
-@Component({ imports: [FormsModule, CurrencyPipe, DatePipe, RouterLink, AdminSettings, ProductImage, ConfirmDialog], templateUrl: './admin.html', styleUrl: './admin.css' })
+@Component({ imports: [Sidebar, FormsModule, CurrencyPipe, DatePipe, RouterLink, AdminSettings, ProductImage, ConfirmDialog], templateUrl: './admin.html', styleUrl: './admin.css' })
 export class AdminPage {
   private api = inject(Api); private router = inject(Router);
   private destroyRef = inject(DestroyRef);

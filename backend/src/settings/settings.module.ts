@@ -9,7 +9,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { ShippingSender } from '../admin/shipping-label';
 
 export const defaults = {
-  storeName: 'IoT Lab', tagline: 'Da ideia ao dispositivo.',
+  storeName: 'IoT Componentes', tagline: 'Da ideia ao dispositivo.',
   catalogTitle: 'Componentes para suas ideias.', catalogDescription: 'Encontre a próxima peça do seu projeto.',
   bannerTitle: 'Pequenos componentes. Grandes possibilidades.',
   bannerDescription: 'Escolha sua placa e solicite a programação que o seu projeto precisa.',
@@ -55,7 +55,12 @@ export class SettingsService {
     return { sender };
   }
   constructor(@InjectModel(StoreSettings.name) private readonly model: Model<StoreSettings>) {}
-  async get() { const doc = await this.model.findOne({ key: 'store' }).lean(); return { ...defaults, ...doc?.content }; }
+  async get() {
+    const doc = await this.model.findOne({ key: 'store' }).lean();
+    const content = { ...defaults, ...doc?.content };
+    if (['iot lab', 'iot componentes', 'iot components'].includes(content.storeName.trim().toLowerCase())) content.storeName = defaults.storeName;
+    return content;
+  }
   async save(dto: StoreSettingsDto) {
     const doc = await this.model.findOneAndUpdate({ key: 'store' }, { $set: { content: dto } }, { new: true, upsert: true, runValidators: true }).lean();
     return { ...defaults, ...doc.content };

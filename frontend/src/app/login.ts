@@ -5,7 +5,7 @@ import { Api, Session, User, errorMessage } from './core';
 
 @Component({ standalone: true, imports: [FormsModule], template: `
   <div class="auth-layout"><div><p class="eyebrow">CONECTE SUAS IDEIAS</p><h1>Um lugar para<br>criar o próximo.</h1><p class="subtitle">Componentes, dispositivos e projetos.<br>Tudo conectado à sua conta.</p><div class="circuit-art" aria-hidden="true">⌘</div></div>
-  <section class="panel auth-panel"><h2>{{ register() ? 'Crie sua conta' : 'Bem-vindo de volta' }}</h2><p class="muted">{{ register() ? 'Comece a construir com o IoT Lab.' : 'Entre para acompanhar seus projetos.' }}</p>
+  <section class="panel auth-panel"><h2>{{ register() ? 'Crie sua conta' : 'Bem-vindo de volta' }}</h2><p class="muted">{{ register() ? 'Comece a construir com o IoT Componentes.' : 'Entre para acompanhar seus projetos.' }}</p>
     @if (expired) { <p class="notice">Sua sessão expirou. Entre novamente.</p> }
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     <form #form="ngForm" (ngSubmit)="submit(form)">

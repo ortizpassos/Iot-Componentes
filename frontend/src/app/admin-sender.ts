@@ -30,7 +30,7 @@ type Sender = Pick<CheckoutProfile, 'fullName' | 'address'>;
       </fieldset></form>
     }
   </section>
-`, styles: `.sender{margin-top:24px}.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 20px}fieldset{border:0;padding:0;margin:0;min-width:0}` })
+`, styles: `.sender{margin-top:24px}.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:0 20px}fieldset{border:0;padding:0;margin:0;min-width:0}` })
 export class AdminSender {
   private api = inject(Api); private destroy = inject(DestroyRef); private store = inject(StoreConfig);
   value: Sender = { fullName: '', address: { zipCode: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '' } };

@@ -38,7 +38,7 @@ export interface CheckoutProfile {
       }
     }
   </section>
-`, styles: `.delivery{margin:24px 0}.address-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 16px}fieldset{border:0;padding:0;margin:0;min-width:0}` })
+`, styles: `.delivery{margin:24px 0}.address-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:0 16px}fieldset{border:0;padding:0;margin:0;min-width:0}` })
 export class CheckoutProfileForm {
   private api = inject(Api); private destroy = inject(DestroyRef);
   ready = output<CheckoutProfile | null>();

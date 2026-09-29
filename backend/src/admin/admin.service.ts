@@ -50,12 +50,12 @@ export class AdminService {
     return { items, total, page: query.page, limit: query.limit };
   }
   async summary() {
-    const [products, activeProducts, orders, pendingOrders, customers, devices, projects] = await Promise.all([
+    const [products, activeProducts, orders, pendingOrders, customers, admins, devices, projects] = await Promise.all([
       this.products.countDocuments(), this.products.countDocuments({ active: true }),
       this.orders.countDocuments(), this.orders.countDocuments({ status: OrderStatus.PENDING }),
-      this.users.countDocuments(), this.devices.countDocuments(), this.projects.countDocuments(),
+      this.users.countDocuments({ role: UserRole.CUSTOMER }), this.users.countDocuments({ role: UserRole.ADMIN }), this.devices.countDocuments(), this.projects.countDocuments(),
     ]);
-    return { products, activeProducts, orders, pendingOrders, customers, devices, projects };
+    return { products, activeProducts, orders, pendingOrders, customers, admins, devices, projects };
   }
   listProducts(query: AdminListDto) { return this.list(this.products, query, ['name', 'sku', 'model']); }
   createProduct(dto: CreateProductDto) { return this.write(() => this.products.create(dto)); }

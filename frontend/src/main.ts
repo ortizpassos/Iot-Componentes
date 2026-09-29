@@ -1,3 +1,4 @@
+import { Sidebar } from './app/sidebar';
 import { FormsModule } from '@angular/forms';
 import { CATALOG_CATEGORIES } from './app/catalog-categories';
 import { Component, inject, signal } from '@angular/core';
@@ -13,20 +14,20 @@ import { Api, Cart, Session, User, apiInterceptor, authGuard, adminGuard } from 
 registerLocaleData(localePt);
 
 @Component({
-  selector: 'app-root', imports: [FormsModule, RouterOutlet, RouterLink, RouterLinkActive],
+  selector: 'app-root', imports: [Sidebar, FormsModule, RouterOutlet, RouterLink, RouterLinkActive],
   template: `
     @if (adminLayout()) { <router-outlet /> } @else {
-    <header class="topbar"><a class="brand" routerLink="/catalogo"><span class="brand-icon">⌘</span>{{ store.value().storeName }}</a><form class="navbar-search" role="search" (ngSubmit)="searchCatalog()"><label class="sr-only" for="navbar-search">Buscar produtos</label><input id="navbar-search" name="search" [(ngModel)]="searchTerm" placeholder="Buscar produtos, marcas e modelos..." maxlength="200"><button type="submit" aria-label="Buscar"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button></form><span class="tagline">{{ store.value().tagline }}</span>
+    <header class="topbar"><button class="mobile-menu-button" type="button" aria-label="Abrir menu" [attr.aria-expanded]="sidebar.opened()" (click)="sidebar.open($event)">☰</button><a class="brand" routerLink="/catalogo"><span class="brand-icon">⌘</span>{{ store.value().storeName }}</a><form class="navbar-search" role="search" (ngSubmit)="searchCatalog()"><label class="sr-only" for="navbar-search">Buscar produtos</label><input id="navbar-search" name="search" [(ngModel)]="searchTerm" placeholder="Buscar produtos, marcas e modelos..." maxlength="200"><button type="submit" aria-label="Buscar"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button></form><span class="tagline">{{ store.value().tagline }}</span>
       <div class="account"><a class="orders-link" routerLink="/pedidos">Meus pedidos</a><a class="cart-link" routerLink="/carrinho" [attr.aria-label]="'Carrinho, ' + cart.totalQuantity() + ' itens'" title="Abrir carrinho"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h3l3 12h11l3-9H6"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg><span class="cart-count" aria-hidden="true">{{ cart.totalQuantity() }}</span></a>@if (session.token()) { <span>{{ session.user()?.name || 'Minha conta' }}</span><button class="text-button" (click)="logout()">Sair</button> } @else { <a routerLink="/login">Entrar / Cadastrar</a> }</div>
       <nav class="category-nav" aria-label="Categorias de produtos">@for (category of categories; track category.value) { <a routerLink="/catalogo" [queryParams]="{ categoria: category.value || null, busca: searchTerm || null }" [class.selected]="catalogActive() && selectedCategory() === category.value" [attr.aria-current]="catalogActive() && selectedCategory() === category.value ? 'page' : null">{{ category.label }}</a> }</nav>
     </header>
-    <div class="layout"><aside><div class="nav-label">WORKSPACE</div><nav aria-label="Navegação principal">
+    <div class="layout"><app-sidebar #sidebar><aside><div class="nav-label">WORKSPACE</div><nav aria-label="Navegação principal">
       <a routerLink="/catalogo" routerLinkActive="active">◈ <span>Catálogo</span></a>
       <a routerLink="/carrinho" routerLinkActive="active">▤ <span>Carrinho</span><small>{{ cart.totalQuantity() }}</small></a>
       <a routerLink="/pedidos" routerLinkActive="active">▦ <span>Meus pedidos</span></a>
       <a routerLink="/dispositivos" routerLinkActive="active">▣ <span>Dispositivos</span></a>
       <a routerLink="/projetos" routerLinkActive="active">◇ <span>Projetos</span></a>
-    </nav><div class="sidebar-note"><span class="dot"></span> Seu próximo projeto<br>começa com uma ideia.</div></aside><main id="main"><router-outlet /></main></div>
+    </nav><div class="sidebar-note"><span class="dot"></span> Seu próximo projeto<br>começa com uma ideia.</div></aside></app-sidebar><main id="main"><router-outlet /></main></div>
     }
   `,
 })

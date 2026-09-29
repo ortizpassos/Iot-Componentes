@@ -46,7 +46,7 @@ import { ProductImage } from './product-image';
       }
     }
   `,
-  styles: `.product-detail{display:grid;grid-template-columns:1fr 1fr;gap:24px}.main-image{height:380px}.thumbnails{display:flex;gap:8px;margin-top:16px}.thumbnails button{width:calc((100% - 32px)/5);height:70px;padding:0}.thumbnails .selected{border:2px solid var(--primary)}.price{font-size:30px;font-weight:700}.actions{display:flex;flex-wrap:wrap;gap:12px}.description{margin-top:24px}.description p,dd{white-space:pre-wrap;overflow-wrap:anywhere}dt{font-weight:700}dd{margin:4px 0 16px}h1{overflow-wrap:anywhere}@media(max-width:800px){.product-detail{grid-template-columns:1fr}.main-image{height:280px}}`,
+  styles: `.product-detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}.main-image{height:380px}.thumbnails{display:flex;gap:8px;margin-top:16px}.thumbnails button{width:calc((100% - 32px)/5);height:70px;padding:0}.thumbnails .selected{border:2px solid var(--primary)}.price{font-size:30px;font-weight:700}.actions{display:flex;flex-wrap:wrap;gap:12px}.description{margin-top:24px}.description p,dd{white-space:pre-wrap;overflow-wrap:anywhere}dt{font-weight:700}dd{margin:4px 0 16px}h1{overflow-wrap:anywhere}@media(max-width:800px){.product-detail{grid-template-columns:minmax(0,1fr)}.main-image{height:280px}}`,
 })
 export class ProductDetailPage {
   private api = inject(Api); cart = inject(Cart); private router = inject(Router);
