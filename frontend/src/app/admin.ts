@@ -4,7 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { Observable } from 'rxjs';
+import { Observable, interval } from 'rxjs';
 import { Api, Cart, Session, Order, errorMessage } from './core';
 import { AdminSettings } from './admin-settings';
 import { ProductImage } from './product-image';
@@ -69,7 +69,12 @@ export class AdminPage {
     });
   }
   private requestId = 0;
-  constructor() { this.load(); this.loadSummary(); }
+  constructor() {
+    this.load(); this.loadSummary();
+    interval(15000).pipe(takeUntilDestroyed()).subscribe(() => {
+      if (this.tab() === 'orders' && !this.loading() && !this.busy() && !this.pending() && !this.shipping() && !this.detail()) this.load();
+    });
+  }
   fail(error: unknown) {
     if ((error as { status?: number })?.status === 403) { void this.router.navigate(['/acesso-restrito']); return; }
     this.error.set(errorMessage(error));
@@ -168,6 +173,7 @@ export class AdminPage {
   }
   toggle(row: Row) { this.pending.set({ label: `${row.active ? 'Desativar' : 'Ativar'} ${row.name}?`, path: `admin/${this.tab()}/${row._id}/active`, body: { active: !row.active } }); }
   changeStatus(row: Row, status: string) {
+    if (status === 'PAID') { this.pending.set({ label: 'Confirmar que o pagamento do pedido #' + row._id.slice(-8) + ' foi recebido? Esta confirmacao e manual e nao cobra nem cancela tentativas no Mercado Pago.', path: 'admin/orders/' + row._id + '/status', body: { status } }); return; }
     if (status === 'SHIPPED') { this.shipping.set(row); this.trackingCode = ''; return; }
     if (status === 'LABEL_ISSUED') { this.pending.set({ label: `Enviar a etiqueta do pedido #${row._id.slice(-8)} para a impressora?`, path: `admin/orders/${row._id}/issue-label`, body: {}, post: true, successMessage: 'Etiqueta na fila. O monitor imprimira quando estiver conectado. Atualize a lista para acompanhar.' }); return; }
     this.pending.set({ label: `Alterar pedido #${row._id.slice(-8)} para ${this.label(status)}? Esta ação não realiza cobrança, estorno ou movimentação de estoque.`, path: `admin/orders/${row._id}/status`, body: { status } });

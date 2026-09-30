@@ -110,7 +110,14 @@ test('order status updates are conditional and preserve price snapshots', async 
   const admin = new AdminService({}, orders, {}, {}, {});
   await admin.orderStatus(id, 'PAID');
   assert.equal(update.filter.status, 'PENDING');
-  assert.deepEqual(update.fields, { $set: { status: 'PAID' } });
+  assert.equal(update.fields.$set.status, 'PAID');
+  assert.ok(update.fields.$set.manuallyPaidAt instanceof Date);
+  assert.equal(update.filter.payment, undefined);
+  assert.equal(update.fields.$set.payment, undefined);
+  order.payment = { status: 'rejected', providerId: 'old-attempt' };
+  await admin.orderStatus(id, 'PAID');
+  assert.equal(update.filter.payment, undefined);
+  assert.equal(order.payment.status, 'rejected');
   await assert.rejects(admin.orderStatus(id, 'FULFILLED'), e => e.getStatus() === 409);
   orders.findOneAndUpdate = () => query(null);
   await assert.rejects(admin.orderStatus(id, 'PAID'), e => e.getStatus() === 409);

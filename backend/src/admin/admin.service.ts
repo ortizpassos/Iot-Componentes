@@ -85,7 +85,7 @@ export class AdminService {
     const order = await this.order(id);
     if (order.status === status) return order;
     if (!allowed[order.status].includes(status)) throw new ConflictException('Transição de status não permitida.');
-    const result = await this.orders.findOneAndUpdate({ _id: this.id(id), status: order.status, payment: { $exists: false } }, { $set: { status } }, { new: true, runValidators: true }).populate('customer', 'name email').lean();
+    const result = await this.orders.findOneAndUpdate({ _id: this.id(id), status: order.status, ...(status === OrderStatus.PAID ? {} : { payment: { $exists: false } }) }, { $set: { status, ...(status === OrderStatus.PAID ? { manuallyPaidAt: new Date() } : {}) } }, { new: true, runValidators: true }).populate('customer', 'name email').lean();
     if (!result) throw new ConflictException('Pedido alterado ou com pagamento online. Pagamentos e estornos devem ser confirmados pelo Mercado Pago.');
     return result;
   }

@@ -42,7 +42,7 @@ Teste em ambiente de homologação com contas e cartões de teste oficiais. A di
 - Se uma falha de rede ocorrer antes de chegar ao provedor e a busca permanecer vazia, a tentativa fica bloqueada para conferência pelo operador. Não remova esse bloqueio sem verificar que não houve cobrança no Mercado Pago.
 - Rejeição, cancelamento confirmado ou erro de validação 400/422 permitem nova tentativa. Não é possível trocar de método enquanto um Pix ou cartão está pendente; aguarde a conclusão ou cancele no Mercado Pago.
 - Webhooks exigem assinatura HMAC válida e consultam o recurso no Mercado Pago antes de atualizar o banco. Valor, moeda e referência são conferidos. Apenas aprovação confirmada muda PENDING para PAID. Eventos antigos não sobrescrevem estados mais recentes; reembolso/chargeback integral marca CANCELLED.
-- Alterações manuais de pagamento/cancelamento no ADM ficam bloqueadas para pedidos que já iniciaram uma tentativa online. A impressao automatica usa PAID com payment.status approved. A etiqueta aceita pela impressora muda para LABEL_ISSUED; o ADM confirma SHIPPED com rastreio apos o despacho. Faça cancelamentos/estornos no painel Mercado Pago; os eventos atualizam a loja.
+- O ADM pode confirmar manualmente um pedido pendente como pago, inclusive com tentativa online anterior; manuallyPaidAt registra a data. A confirmacao nao cobra, cancela nem altera a tentativa no provedor. Cancelamentos manuais continuam bloqueados quando ha tentativa online. A impressao automatica usa PAID com payment.status approved. A etiqueta aceita pela impressora muda para LABEL_ISSUED; o ADM confirma SHIPPED com rastreio apos o despacho. Faça cancelamentos/estornos no painel Mercado Pago; os eventos atualizam a loja.
 
 ## Limites desta etapa
 

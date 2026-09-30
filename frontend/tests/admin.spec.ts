@@ -62,7 +62,7 @@ test('authorized administrator creates and edits products and confirms order sta
   expect(productBody.price).toBe(99.9);
   expect(productBody.installmentFeePayer).toBe('BUYER');
   await page.getByRole('button', { name: 'Pedidos', exact: true }).click();
-  await page.getByRole('button', { name: 'Pago', exact: true }).click();
+  await page.getByRole('button', { name: 'Marcar como pago', exact: true }).click();
   expect(statusBody).toBeUndefined();
   await page.getByRole('button', { name: 'Confirmar alteração' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Alteração salva.' })).toHaveText('Alteração salva.');

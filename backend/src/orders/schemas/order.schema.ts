@@ -67,6 +67,8 @@ const OrderItemSchema = SchemaFactory.createForClass(OrderItem);
 @Schema({ timestamps: true })
 export class Order {
   @Prop({ type: Date })
+  manuallyPaidAt?: Date;
+  @Prop({ type: Date })
   labelRequestedAt?: Date;
   @Prop({ type: String })
   trackingCode?: string;
