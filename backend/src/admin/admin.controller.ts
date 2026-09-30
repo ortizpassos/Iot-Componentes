@@ -1,8 +1,9 @@
+import { RegisterDto } from '../auth/dto/register.dto';
 import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, StreamableFile, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { CreateProductDto } from '../products/dto/create-product.dto';
-import { ActiveDto, AdminDeviceDto, AdminListDto, AdminProjectDto, OrderStatusDto } from './admin.dto';
+import { ShipmentDto, ActiveDto, AdminDeviceDto, AdminListDto, AdminProjectDto, OrderStatusDto } from './admin.dto';
 import { AdminService } from './admin.service';
 
 @Controller('admin')
@@ -18,11 +19,15 @@ export class AdminController {
   @Patch('products/:id/active') productActive(@Param('id') id: string, @Body() dto: ActiveDto) { return this.admin.productActive(id, dto.active); }
   @Get('orders') orders(@Query() query: AdminListDto) { return this.admin.listOrders(query); }
   @Get('orders/:id') order(@Param('id') id: string) { return this.admin.order(id); }
-  @Post('orders/:id/ship') @Header('Cache-Control', 'no-store')
-  async ship(@Param('id') id: string) { return new StreamableFile(await this.admin.shipOrder(id), { type: 'application/pdf', disposition: `attachment; filename="etiqueta-${id}.pdf"` }); }
+  @Post('orders/:id/retry-print') retryPrint(@Param('id') id: string) { return this.admin.retryPrint(id); }
+  @Post('orders/:id/ship') ship(@Param('id') id: string, @Body() dto: ShipmentDto) { return this.admin.shipOrder(id, dto.trackingCode); }
+  @Post('orders/:id/issue-label') @Header('Cache-Control', 'no-store')
+  async issueLabel(@Param('id') id: string) { return new StreamableFile(await this.admin.issueLabel(id), { type: 'application/pdf', disposition: 'attachment; filename="etiqueta.pdf"' }); }
   @Get('orders/:id/shipping-label') @Header('Cache-Control', 'no-store')
   async label(@Param('id') id: string) { return new StreamableFile(await this.admin.label(id), { type: 'application/pdf', disposition: `attachment; filename="etiqueta-${id}.pdf"` }); }
   @Patch('orders/:id/status') orderStatus(@Param('id') id: string, @Body() dto: OrderStatusDto) { return this.admin.orderStatus(id, dto.status); }
+  @Post('administrators') createAdmin(@Body() dto: RegisterDto) { return this.admin.createAdmin(dto); }
+  @Get('administrators') administrators(@Query() query: AdminListDto) { return this.admin.listAdmins(query); }
   @Get('users') users(@Query() query: AdminListDto) { return this.admin.listUsers(query); }
   @Patch('users/:id/active') userActive(@Param('id') id: string, @Body() dto: ActiveDto) { return this.admin.userActive(id, dto.active); }
   @Get('devices') devices(@Query() query: AdminListDto) { return this.admin.listDevices(query); }

@@ -1,3 +1,4 @@
+import { ApiKeepAlive } from './app/api-keep-alive';
 import { Sidebar } from './app/sidebar';
 import { FormsModule } from '@angular/forms';
 import { CATALOG_CATEGORIES } from './app/catalog-categories';
@@ -32,6 +33,7 @@ registerLocaleData(localePt);
   `,
 })
 class App {
+  private keepAlive = inject(ApiKeepAlive);
   searchTerm = '';
   searchCatalog() { void this.router.navigate(['/catalogo'], { queryParams: { busca: this.searchTerm.trim() || null, categoria: this.selectedCategory() || null } }); }
   categories = CATALOG_CATEGORIES; selectedCategory = signal(''); catalogActive = signal(false);

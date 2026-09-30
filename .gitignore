@@ -9,3 +9,7 @@ playwright-report/
 test-results/
 .DS_Store
 backend/uploads/
+
+Monitor_impressora/config.h
+
+.print-test.env

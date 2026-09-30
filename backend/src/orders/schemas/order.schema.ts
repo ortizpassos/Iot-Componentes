@@ -14,6 +14,7 @@ export enum ProgrammingType {
 export enum OrderStatus {
   PENDING = 'PENDING',
   PAID = 'PAID',
+  LABEL_ISSUED = 'LABEL_ISSUED',
   CANCELLED = 'CANCELLED',
   FULFILLED = 'FULFILLED',
   SHIPPED = 'SHIPPED',
@@ -65,6 +66,13 @@ const OrderItemSchema = SchemaFactory.createForClass(OrderItem);
 
 @Schema({ timestamps: true })
 export class Order {
+  @Prop({ type: String })
+  trackingCode?: string;
+  @Prop({ type: Date })
+  labelIssuedAt?: Date;
+  @Prop({ type: Object, select: false })
+  printJob?: { token: string; state: 'CLAIMED' | 'PRINTING' | 'DONE' | 'ERROR'; claimedAt: Date; error?: string };
+
   @Prop({ type: Object })
   shippingSender?: ShippingSender;
   @Prop({ type: Date })

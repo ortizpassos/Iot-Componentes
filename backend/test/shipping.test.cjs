@@ -17,9 +17,9 @@ function fixture(status = 'PAID') {
 }
 test('paid order produces a single-page PDF with snapshot address and transitions once, including retries', async () => {
   const f = fixture();
-  const [pdf, retry] = await Promise.all([f.service.shipOrder(id), f.service.shipOrder(id)]);
+  const [pdf, retry] = await Promise.all([f.service.issueLabel(id), f.service.issueLabel(id)]);
   assert.equal(pdf.subarray(0, 5).toString(), '%PDF-'); assert.equal(retry.subarray(0, 5).toString(), '%PDF-');
-  assert.equal(f.state.status, 'SHIPPED'); assert.ok(f.state.shippedAt instanceof Date); assert.equal(f.changes(), 1);
+  assert.equal(f.state.status, 'LABEL_ISSUED'); assert.ok(f.state.labelIssuedAt instanceof Date); assert.equal(f.state.shippedAt, undefined); assert.equal(f.changes(), 1);
   const source = pdf.toString('latin1'); assert.match(source, /\/Count 1\b/); assert.match(source, /\/MediaBox \[0 0 595\.28 841\.89\]/);
   let decoded = '';
   for (const match of source.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
@@ -36,16 +36,16 @@ test('paid order produces a single-page PDF with snapshot address and transition
 });
 test('unpaid, cancelled and legacy completed orders cannot be shipped; incomplete address preserves paid status', async () => {
   for (const status of ['PENDING', 'CANCELLED', 'FULFILLED']) {
-    const f = fixture(status); await assert.rejects(f.service.shipOrder(id), e => e.getStatus() === 409); assert.equal(f.changes(), 0);
+    const f = fixture(status); await assert.rejects(f.service.issueLabel(id), e => e.getStatus() === 409); assert.equal(f.changes(), 0);
   }
   const f = fixture(); delete f.state.checkoutProfile;
-  await assert.rejects(f.service.shipOrder(id), e => e.getStatus() === 400); assert.equal(f.state.status, 'PAID'); assert.equal(f.changes(), 0);
+  await assert.rejects(f.service.issueLabel(id), e => e.getStatus() === 400); assert.equal(f.state.status, 'PAID'); assert.equal(f.changes(), 0);
   await assert.rejects(f.service.label(id), e => e.getStatus() === 409);
   await assert.rejects(f.service.orderStatus(id, 'SHIPPED'), e => e.getStatus() === 409);
 });
 test('concurrent cancellation prevents shipping, and long delivery fields fit the label and declaration', async () => {
   const f = fixture(); f.service.orders.updateOne = async () => { f.state.status = 'CANCELLED'; return { modifiedCount: 0 }; };
-  await assert.rejects(f.service.shipOrder(id), e => e.getStatus() === 409); assert.equal(f.state.status, 'CANCELLED');
+  await assert.rejects(f.service.issueLabel(id), e => e.getStatus() === 409); assert.equal(f.state.status, 'CANCELLED');
   const long = structuredClone(profile); long.fullName = 'Nome '.repeat(30).trim();
   long.address.street = 'Rua '.repeat(37); for (const field of ['complement', 'neighborhood', 'city']) long.address[field] = 'Texto '.repeat(16);
   const pdf = await shippingLabel(id, long, sender, [{ name: 'Sensor', quantity: 1, total: 10 }]); assert.match(pdf.toString('latin1'), /\/Count 1\b/);
@@ -53,7 +53,7 @@ test('concurrent cancellation prevents shipping, and long delivery fields fit th
 
 test('missing sender blocks shipping without changing order status', async () => {
   const f = fixture(); f.service.settings.getShippingSender = async () => undefined;
-  await assert.rejects(f.service.shipOrder(id), e => e.getStatus() === 400 && e.message.includes('Remetente'));
+  await assert.rejects(f.service.issueLabel(id), e => e.getStatus() === 400 && e.message.includes('Remetente'));
   assert.equal(f.state.status, 'PAID'); assert.equal(f.changes(), 0);
 });
 
@@ -62,6 +62,15 @@ test('large orders continue on additional declaration pages and invalid items bl
   const pdf = await shippingLabel(id, profile, sender, items);
   assert.match(pdf.toString('latin1'), /\/Count 3\b/);
   const f = fixture(); f.state.items = [];
-  await assert.rejects(f.service.shipOrder(id), e => e.getStatus() === 400);
+  await assert.rejects(f.service.issueLabel(id), e => e.getStatus() === 400);
   assert.equal(f.changes(), 0);
+});
+
+test('shipment requires an issued label and stores tracking without issuing another PDF', async () => {
+  const f = fixture('LABEL_ISSUED');
+  f.service.orders.findOneAndUpdate = (filter, update) => ({ populate: () => ({ lean: async () => { assert.equal(filter.status, 'LABEL_ISSUED'); Object.assign(f.state, update.$set); return f.state; } }) });
+  const shipped = await f.service.shipOrder(id, 'AB123456789BR');
+  assert.equal(shipped.status, 'SHIPPED'); assert.equal(shipped.trackingCode, 'AB123456789BR');
+  assert.ok(shipped.shippedAt instanceof Date);
+  await assert.rejects(fixture().service.shipOrder(id, 'AB123456789BR'), e => e.getStatus() === 409);
 });

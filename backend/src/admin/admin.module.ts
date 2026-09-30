@@ -1,3 +1,4 @@
+import { PrintMonitorController, PrintMonitorService, PrintMonitorGuard } from './print-monitor';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Product, ProductSchema } from '../products/schemas/product.schema';
@@ -15,6 +16,6 @@ import { SettingsModule } from '../settings/settings.module';
     { name: User.name, schema: UserSchema }, { name: Device.name, schema: DeviceSchema },
     { name: Project.name, schema: ProjectSchema },
   ])],
-  controllers: [AdminController], providers: [AdminService],
+  controllers: [AdminController, PrintMonitorController], providers: [AdminService, PrintMonitorService, PrintMonitorGuard],
 })
 export class AdminModule {}

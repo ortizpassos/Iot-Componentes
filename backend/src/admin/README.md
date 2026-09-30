@@ -4,7 +4,7 @@ Abra diretamente `http://localhost:4200/adm` ou faça login com uma conta ADMIN 
 
 ## Autorizar contas predeterminadas
 
-O cadastro público sempre cria CUSTOMER. Nenhum e-mail, senha padrão ou primeiro usuário é promovido automaticamente. Somente contas existentes escolhidas pelo operador do servidor recebem ADMIN.
+O cadastro público sempre cria CUSTOMER. Nenhum e-mail, senha padrão ou primeiro usuário é promovido automaticamente. O operador pode autorizar contas pelo terminal, e administradores podem criar novas contas na guia Administradores. A guia Clientes lista apenas CUSTOMER; nao ha promocao de clientes pelo painel.
 
 Dentro de `backend`, com o MongoDB configurado em `.env`:
 
@@ -13,20 +13,20 @@ npm run admin:access -- grant usuario@exemplo.com
 npm run admin:access -- revoke usuario@exemplo.com
 ```
 
-O comando opera por e-mail exato e não cria contas nem altera senhas. Não há rota HTTP para autopromoção ou concessão de ADMIN. Para trocar administradores, conceda acesso à nova conta antes de revogar a anterior. A API verifica o perfil e o estado ativo no banco a cada requisição autenticada, inclusive com JWTs emitidos antes da mudança.
+O comando opera por e-mail exato e não cria contas nem altera senhas. POST /api/admin/administrators cria novas contas ADMIN, protegido pelos guards administrativos. Nao ha rota de promocao de clientes. Para trocar administradores, conceda acesso à nova conta antes de revogar a anterior. A API verifica o perfil e o estado ativo no banco a cada requisição autenticada, inclusive com JWTs emitidos antes da mudança.
 
 ## Gestão disponível
 
 - Resumo de produtos, pedidos pendentes, contas, dispositivos e projetos.
 - Produtos: listar ativos/inativos, criar, editar dados, preço, estoque, especificações e programação; ativar/desativar e excluir após confirmação.
 - Configurações do site: nome da loja, frase do cabeçalho, título/descrição do catálogo e banner, aviso e e-mail de contato; persistidas no MongoDB e exibidas na loja pública.
-- Pedidos: listar todos, consultar comprador, snapshot de itens e requisitos; alterar PENDING → PAID/CANCELLED e PAID → SHIPPED/CANCELLED. O envio usa a ação com etiqueta, não a alteração genérica de status. Estados terminais não são reabertos. Atualizações concorrentes geram 409.
+- Pedidos: listar todos, consultar comprador e itens; pagamento confirmado -> PAID -> LABEL_ISSUED -> SHIPPED. O envio exige rastreio e confirmacao manual. Atualizacoes concorrentes geram 409.
 
 ### Etiqueta de envio
 
-Em pedidos pagos, **Concluído · gerar etiqueta** solicita confirmação, baixa o PDF e marca o pedido como **Enviado** (`SHIPPED`), registrando `shippedAt`. A API administrativa `POST /api/admin/orders/:id/ship` gera o PDF antes de atualizar o status, com atualização condicional para não enviar um pedido cancelado simultaneamente. Repetir a requisição de um pedido já enviado apenas gera outra cópia. `GET /api/admin/orders/:id/shipping-label` permite reimprimir sem alterar o pedido.
+Em pedidos pagos, **Emitir etiqueta PDF** gera a etiqueta e marca LABEL_ISSUED, sem confirmar envio. O Monitor_impressora automatiza a impressao de pagamentos aprovados pelo Mercado Pago. Depois de despachar, **Informar rastreio e enviar** solicita o codigo e confirmacao em modal; POST /api/admin/orders/:id/ship registra trackingCode e shippedAt. GET /api/admin/orders/:id/shipping-label baixa novamente a etiqueta emitida. Veja [configuracao do monitor](../../../Monitor_impressora/README.md).
 
-A etiqueta tem 100 × 150 mm e segue o arquivo `modelo-gerador-de-etiquetas-dos-correios.jpg` da raiz: quadros separados de DESTINATÁRIO e REMETENTE, nomes em negrito, endereço, CEP e código de barras Code 128 do CEP do destinatário. O número do pedido fica nos metadados e no nome do PDF. O CPF é validado no cadastro, mas não impresso externamente na embalagem. Pedidos antigos sem dados completos são bloqueados e permanecem pagos; o sistema não substitui silenciosamente o endereço pelo perfil atual. Pedidos antigos `FULFILLED` continuam como concluídos, sem migração automática.
+A etiqueta ocupa a metade superior de uma folha A4; a declaracao de conteudo segue abaixo e segue o arquivo `modelo-gerador-de-etiquetas-dos-correios.jpg` da raiz: quadros separados de DESTINATÁRIO e REMETENTE, nomes em negrito, endereço, CEP e código de barras Code 128 do CEP do destinatário. O número do pedido fica nos metadados e no nome do PDF. O CPF é validado no cadastro, mas não impresso externamente na embalagem. Pedidos antigos sem dados completos são bloqueados e permanecem pagos; o sistema não substitui silenciosamente o endereço pelo perfil atual. Pedidos antigos `FULFILLED` continuam como concluídos, sem migração automática.
 
 Configure o remetente em **ADM → Configurações do site → Remetente das etiquetas** e clique em **Salvar dados do remetente**. Complemento é opcional; os outros campos são obrigatórios. Os dados são persistidos no banco, separados das configurações públicas, por `GET/PUT /api/settings/shipping-sender` (somente administradores ativos). Não é necessário configurar variáveis de ambiente nem reiniciar o backend ao alterar o remetente. Sem remetente completo, o envio é bloqueado antes da alteração de status. Novos envios guardam uma cópia do remetente no pedido para reimpressões consistentes. Pedidos enviados antes dessa configuração usam o remetente atual ao reimprimir. O código de barras identifica o CEP, não representa rastreamento ou contratação de frete dos Correios.
 

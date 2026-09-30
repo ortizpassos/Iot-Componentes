@@ -1,3 +1,5 @@
+import * as bcrypt from 'bcrypt';
+import { RegisterDto } from '../auth/dto/register.dto';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -39,15 +41,17 @@ export class AdminService {
       return result;
     });
   }
-  private async list<T>(model: Model<T>, query: AdminListDto, fields: string[], populate?: string) {
+  private async list<T>(model: Model<T>, query: AdminListDto, fields: string[], populate?: string, scope: object = {}) {
     const text = query.search?.trim();
     const escaped = text?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const filter: any = escaped ? { $or: fields.map(field => ({ [field]: { $regex: escaped, $options: 'i' } })) } : {};
     if (text && Types.ObjectId.isValid(text)) filter.$or.push({ _id: new Types.ObjectId(text) });
-    const request = model.find(filter).select('-password').sort({ createdAt: -1 }).skip((query.page - 1) * query.limit).limit(query.limit);
+    Object.assign(filter, scope);
+    const request = model.find(filter).select(model === (this.orders as unknown) ? '-password +printJob' : '-password').sort({ createdAt: -1 }).skip((query.page - 1) * query.limit).limit(query.limit);
     if (populate) request.populate(populate, 'name email');
     const [items, total] = await Promise.all([request.lean(), model.countDocuments(filter)]);
-    return { items, total, page: query.page, limit: query.limit };
+    const safeItems = items.map((item: any) => { const { printJob, ...safe } = item; return printJob ? { ...safe, printState: printJob.state, printError: printJob.error } : safe; });
+    return { items: safeItems, total, page: query.page, limit: query.limit };
   }
   async summary() {
     const [products, activeProducts, orders, pendingOrders, customers, admins, devices, projects] = await Promise.all([
@@ -75,7 +79,7 @@ export class AdminService {
   async orderStatus(id: string, status: OrderStatus) {
     if ([OrderStatus.SHIPPED, OrderStatus.FULFILLED].includes(status)) throw new ConflictException('Use a ação de envio com geração da etiqueta.');
     const allowed: Record<OrderStatus, OrderStatus[]> = {
-      PENDING: [OrderStatus.PAID, OrderStatus.CANCELLED], PAID: [OrderStatus.CANCELLED],
+      PENDING: [OrderStatus.PAID, OrderStatus.CANCELLED], PAID: [OrderStatus.CANCELLED], LABEL_ISSUED: [OrderStatus.CANCELLED],
       CANCELLED: [], FULFILLED: [], SHIPPED: [],
     };
     const order = await this.order(id);
@@ -85,27 +89,46 @@ export class AdminService {
     if (!result) throw new ConflictException('Pedido alterado ou com pagamento online. Pagamentos e estornos devem ser confirmados pelo Mercado Pago.');
     return result;
   }
-  async shipOrder(id: string) {
+  async retryPrint(id: string) {
+    const result = await this.orders.updateOne({ _id: this.id(id), status: OrderStatus.PAID, 'printJob.state': { $in: ['CLAIMED', 'PRINTING', 'ERROR'] } }, { $unset: { printJob: 1 } });
+    if (!result.modifiedCount) throw new ConflictException('Pedido indisponivel para nova tentativa.');
+    return { queued: true };
+  }
+  async shipOrder(id: string, trackingCode: string) {
     const order = await this.order(id);
-    if (order.status === OrderStatus.SHIPPED) return this.label(id);
-    if (order.status !== OrderStatus.PAID) throw new ConflictException('Somente pedidos pagos podem ser enviados.');
-    // Generate successfully before changing status; retries can download again without another transition.
+    if (order.status === OrderStatus.SHIPPED && order.trackingCode === trackingCode) return order;
+    if (order.status !== OrderStatus.LABEL_ISSUED) throw new ConflictException('Emita a etiqueta antes de confirmar o envio.');
+    const result = await this.orders.findOneAndUpdate({ _id: this.id(id), status: OrderStatus.LABEL_ISSUED }, { $set: { status: OrderStatus.SHIPPED, shippedAt: new Date(), trackingCode } }, { new: true }).populate('customer', 'name email').lean();
+    if (!result) throw new ConflictException('Pedido alterado. Atualize a lista.');
+    return result;
+  }
+  async issueLabel(id: string) {
+    const order = await this.order(id);
+    if ([OrderStatus.LABEL_ISSUED, OrderStatus.SHIPPED].includes(order.status)) return this.label(id);
+    if (order.status !== OrderStatus.PAID) throw new ConflictException('Somente pedidos pagos podem emitir etiqueta.');
     const sender = await this.settings.getShippingSender();
     const pdf = await shippingLabel(id, order.checkoutProfile, sender, order.items);
-    const updated = await this.orders.updateOne({ _id: this.id(id), status: OrderStatus.PAID }, { $set: { status: OrderStatus.SHIPPED, shippedAt: new Date(), shippingSender: sender } });
-    if (!updated.modifiedCount) {
-      const current = await this.order(id);
-      if (current.status !== OrderStatus.SHIPPED) throw new ConflictException('O pedido foi alterado. Atualize a lista antes de enviar.');
-      return this.label(id);
-    }
+    const result = await this.orders.updateOne({ _id: this.id(id), status: OrderStatus.PAID, $or: [{ printJob: { $exists: false } }, { 'printJob.state': 'ERROR' }] }, { $set: { status: OrderStatus.LABEL_ISSUED, labelIssuedAt: new Date(), shippingSender: sender } });
+    if (!result.modifiedCount) { const current = await this.order(id); if ([OrderStatus.LABEL_ISSUED, OrderStatus.SHIPPED].includes(current.status)) return this.label(id); throw new ConflictException('Pedido alterado ou em impressao automatica. Atualize a lista.'); }
     return pdf;
   }
   async label(id: string) {
     const order = await this.order(id);
-    if (order.status !== OrderStatus.SHIPPED) throw new ConflictException('A etiqueta está disponível após confirmar o envio.');
+    if (![OrderStatus.LABEL_ISSUED, OrderStatus.SHIPPED].includes(order.status)) throw new ConflictException('Emita a etiqueta primeiro.');
     return shippingLabel(id, order.checkoutProfile, order.shippingSender || await this.settings.getShippingSender(), order.items);
   }
-  listUsers(query: AdminListDto) { return this.list(this.users, query, ['name', 'email', 'role']); }
+  async createAdmin(dto: RegisterDto) {
+    if (dto.name.trim().length < 2 || Buffer.byteLength(dto.password, 'utf8') > 72) throw new BadRequestException('Nome ou senha inválidos. A senha deve ter no máximo 72 bytes.');
+    try {
+      const user = await this.users.create({ name: dto.name.trim(), email: dto.email.trim().toLowerCase(), password: await bcrypt.hash(dto.password, 12), role: UserRole.ADMIN, active: true });
+      return { _id: user._id, name: user.name, email: user.email, role: user.role, active: user.active };
+    } catch (error) {
+      if ((error as { code?: number }).code === 11000) throw new ConflictException('E-mail já cadastrado.');
+      throw error;
+    }
+  }
+  listUsers(query: AdminListDto) { return this.list(this.users, query, ['name', 'email'], undefined, { role: UserRole.CUSTOMER }); }
+  listAdmins(query: AdminListDto) { return this.list(this.users, query, ['name', 'email'], undefined, { role: UserRole.ADMIN }); }
   async userActive(id: string, active: boolean) {
     // Admin grants/revocations are deliberately restricted to the local operator command.
     const user = await this.users.findOneAndUpdate({ _id: this.id(id), role: { $ne: UserRole.ADMIN } }, { $set: { active } }, { new: true }).select('-password').lean();

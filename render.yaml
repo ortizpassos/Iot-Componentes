@@ -12,12 +12,13 @@ services:
 
   - type: web
     name: iot-componentes-api
-    runtime: node
+    runtime: docker
     rootDir: backend
-    buildCommand: npm install && npm run build
-    startCommand: npm run start:prod
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
     envVars:
+      - key: PRINT_MONITOR_TOKEN
+        sync: false
       - key: MONGODB_URI
         sync: false
       - key: JWT_SECRET

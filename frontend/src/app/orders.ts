@@ -3,7 +3,7 @@ import { CurrencyPipe, DatePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Api, Order, errorMessage } from './core';
 
-const statuses: Record<string, string> = { PENDING: 'Pendente', PAID: 'Pago', SHIPPED: 'Enviado', CANCELLED: 'Cancelado', FULFILLED: 'Concluído' };
+const statuses: Record<string, string> = { PENDING: 'Pendente', PAID: 'Pago', LABEL_ISSUED: 'Etiqueta emitida', SHIPPED: 'Enviado', CANCELLED: 'Cancelado', FULFILLED: 'Concluído' };
 @Component({ imports: [CurrencyPipe, DatePipe, RouterLink], template: `
   <p class="eyebrow">ÁREA DO CLIENTE</p><h1>Meus pedidos</h1><p class="subtitle">Acompanhe os componentes que vão dar vida às suas ideias.</p>
   @if (loading()) { <p role="status">Carregando pedidos…</p> } @else if (error()) { <p class="error" role="alert">{{ error() }} <button (click)="load()">Tentar novamente</button></p> }
@@ -21,6 +21,7 @@ export class OrdersPage {
     @for (item of data.items; track item.productId) { <div class="detail-item"><div class="row"><div><h3>{{ item.name }}</h3><small class="muted">{{ item.sku }} · {{ item.quantity }} × {{ item.unitPrice | currency:'BRL' }}</small></div><strong>{{ item.total | currency:'BRL' }}</strong></div>@if (item.programmingRequest.requested) { <p>Programação: {{ programming(item.programmingRequest.type) }}</p><p class="requirements">{{ item.programmingRequest.requirements }}</p> }</div> }
     <div class="row total"><span>Total dos produtos</span><strong>{{ data.total | currency:'BRL' }}</strong></div><p class="muted">Valores registrados no momento do pedido. A solicitação de programação não inclui cobrança ou execução automática.</p>
     @if (canPay(data)) { <a class="button primary" [routerLink]="['/pagamento', data._id]">Ir para pagamento</a> }
+    @if (data.trackingCode) { <h2>Rastreamento</h2><p>{{ data.trackingCode }}</p> }
     @if (data.checkoutProfile; as delivery) { <h2>Entrega</h2><p>{{ delivery.fullName }}</p><p>{{ delivery.address.street }}, {{ delivery.address.number }} {{ delivery.address.complement }}</p><p>{{ delivery.address.neighborhood }} · {{ delivery.address.city }}/{{ delivery.address.state }} · CEP {{ delivery.address.zipCode }}</p> }
   </section> }
 ` })

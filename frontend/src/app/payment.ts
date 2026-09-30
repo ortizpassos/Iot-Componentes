@@ -40,7 +40,7 @@ function loadSdk() {
     @if (data.payment?.cardSaving === 'saved') { <p class="notice" role="status">Cartão salvo como meio de pagamento padrão para as próximas compras.</p> }
     @if (data.payment?.cardSaving === 'failed') { <p class="notice" role="status">O pagamento foi enviado, mas não foi possível salvar o cartão. Não repita o pagamento por esse motivo.</p> }
     <div class="checkout"><section class="panel"><h2>Como deseja pagar?</h2>
-      @if (data.orderStatus === 'PAID' || data.orderStatus === 'FULFILLED' || data.orderStatus === 'SHIPPED') { <p class="notice" role="status">Pagamento aprovado! Seu pedido foi confirmado.</p> }
+      @if (data.orderStatus === 'PAID' || data.orderStatus === 'LABEL_ISSUED' || data.orderStatus === 'FULFILLED' || data.orderStatus === 'SHIPPED') { <p class="notice" role="status">Pagamento aprovado! Seu pedido foi confirmado.</p> }
       @else if (!data.eligible) { <p class="notice">Este pedido não está disponível para pagamento online. Consulte os detalhes do pedido.</p> }
       @else if (data.canPay && !data.checkoutProfile && !profileReady()) { <p class="notice">Complete e salve os dados de entrega acima para continuar.</p> }
       @else if (!enabled()) { <p class="notice">O pagamento está temporariamente indisponível. Seu pedido foi salvo; volte mais tarde para pagar.</p> }

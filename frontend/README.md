@@ -63,3 +63,9 @@ Os arquivos enviados ficam em `backend/uploads/products`, fora do Git, e são se
 Sirva `dist/web/browser` com fallback para `index.html` nas rotas da aplicação. Configure um reverse proxy para `/api` apontando ao backend; o proxy do Angular funciona apenas em desenvolvimento. Nunca inclua credenciais do MongoDB ou segredo JWT no frontend.
 
 Referências: [compatibilidade Angular](https://angular.dev/reference/versions) e [interceptores HTTP](https://angular.dev/guide/http/interceptors).
+
+### API keep-alive
+
+O frontend consulta `GET /api/health` ao abrir e a cada 5 minutos, usando a mesma URL base da API. A chamada dispensa token, ignora erros e tem timeout de 90 segundos, sem alterar a sessao ou o carrinho. Nao ha chamadas simultaneas de health na mesma instancia da aplicacao.
+
+Funciona somente enquanto a pagina estiver aberta e o navegador executar seus timers; abas suspensas ou dispositivos em repouso podem interromper as chamadas. Para manter o servico ativo sem visitantes, configure um monitor externo ou um plano sempre ativo. Referencia: https://render.com/docs/free#spinning-down-on-idle

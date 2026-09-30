@@ -10,9 +10,10 @@ import { AdminSettings } from './admin-settings';
 import { ProductImage } from './product-image';
 import { ConfirmDialog } from './confirm-dialog';
 
-type Tab = 'products' | 'orders' | 'users' | 'devices' | 'projects' | 'settings';
+type Tab = 'products' | 'orders' | 'users' | 'administrators' | 'devices' | 'projects' | 'settings';
 interface Person { _id: string; name: string; email: string }
 interface Row {
+  printState?: string; printError?: string;
   datasheetUrl?: string; references?: { label: string; url: string }[];
   additionalImageUrls?: string[];
   installmentFeePayer?: 'BUYER' | 'SELLER';
@@ -42,14 +43,31 @@ export class AdminPage {
   loading = signal(false); busy = signal(false); error = signal(''); notice = signal(''); summaryError = signal(false);
   editor = signal(false); editingId = ''; form = emptyForm(); search = ''; page = signal(1); total = signal(0);
   detail = signal<(Order & { customer?: Person }) | null>(null);
-  pending = signal<{ label: string; path: string; body: object; remove?: boolean; shipId?: string } | null>(null);
+  pending = signal<{ label: string; path: string; body: object; remove?: boolean; post?: boolean; shipId?: string } | null>(null);
   ownerSearch = ''; owners = signal<Row[]>([]); ownerLoading = signal(false);
-  tabs: { key: Tab; label: string }[] = [{ key: 'products', label: 'Produtos' }, { key: 'orders', label: 'Pedidos' }, { key: 'users', label: 'Clientes' }, { key: 'devices', label: 'Dispositivos' }, { key: 'projects', label: 'Projetos' }, { key: 'settings', label: 'Configurações do site' }];
+  tabs: { key: Tab; label: string }[] = [{ key: 'products', label: 'Produtos' }, { key: 'orders', label: 'Pedidos' }, { key: 'users', label: 'Clientes' }, { key: 'administrators', label: 'Administradores' }, { key: 'devices', label: 'Dispositivos' }, { key: 'projects', label: 'Projetos' }, { key: 'settings', label: 'Configurações do site' }];
   productTypes = [
     { value: 'BOARD', label: 'Placa' }, { value: 'SENSOR', label: 'Sensor' },
     { value: 'MODULE', label: 'Módulo' }, { value: 'KIT', label: 'Kit' },
     { value: 'ACCESSORY', label: 'Acessório' }, { value: 'SERVICE', label: 'Serviço' },
   ];
+  shipping = signal<Row | null>(null);
+  trackingCode = '';
+  confirmShipment(form: NgForm) {
+    const order = this.shipping();
+    if (!order || form.invalid || this.busy()) return;
+    this.pending.set({ label: 'Confirmar envio do pedido com rastreio ' + this.trackingCode.trim() + '?', path: 'admin/orders/' + order._id + '/ship', body: { trackingCode: this.trackingCode.trim() }, post: true });
+  }
+  newAdmin = signal(false);
+  adminAccount = { name: '', email: '', password: '' };
+  createAdmin(form: NgForm) {
+    if (form.invalid || this.busy()) return;
+    this.busy.set(true); this.error.set('');
+    this.api.post('admin/administrators', { ...this.adminAccount, name: this.adminAccount.name.trim(), email: this.adminAccount.email.trim() }).subscribe({
+      next: () => { this.busy.set(false); this.shipping.set(null); this.newAdmin.set(false); this.adminAccount = { name: '', email: '', password: '' }; this.notice.set('Administrador cadastrado.'); this.load(); this.loadSummary(); },
+      error: e => { this.busy.set(false); this.fail(e); },
+    });
+  }
   private requestId = 0;
   constructor() { this.load(); this.loadSummary(); }
   fail(error: unknown) {
@@ -57,7 +75,7 @@ export class AdminPage {
     this.error.set(errorMessage(error));
   }
   loadSummary() { this.summaryError.set(false); this.api.get<Summary>('admin/summary').subscribe({ next: data => this.summary.set(data), error: () => this.summaryError.set(true) }); }
-  select(tab: Tab) { if (this.busy()) return; this.tab.set(tab); this.page.set(1); this.search = ''; this.editor.set(false); this.detail.set(null); this.pending.set(null); this.notice.set(''); this.load(); }
+  select(tab: Tab) { if (this.busy()) return; this.newAdmin.set(false); this.adminAccount = { name: '', email: '', password: '' }; this.tab.set(tab); this.page.set(1); this.search = ''; this.editor.set(false); this.detail.set(null); this.pending.set(null); this.notice.set(''); this.load(); }
   load() {
     const request = ++this.requestId; this.loading.set(true); this.error.set('');
     if (this.tab() === 'settings') { this.loading.set(false); return; }
@@ -69,8 +87,8 @@ export class AdminPage {
   pages() { return Math.max(1, Math.ceil(this.total() / 20)); }
   searchList() { this.page.set(1); this.load(); }
   move(delta: number) { this.page.update(value => value + delta); this.load(); }
-  label(value?: string) { return ({ PENDING: 'Pendente', PAID: 'Pago', SHIPPED: 'Enviado', FULFILLED: 'Concluído', CANCELLED: 'Cancelado', DRAFT: 'Rascunho', READY: 'Pronto', ARCHIVED: 'Arquivado', CUSTOMER: 'Cliente', ADMIN: 'Administrador', SUPPORT: 'Suporte' } as Record<string, string>)[value || ''] || value || ''; }
-  transitions(status?: string) { return status === 'PENDING' ? ['PAID', 'CANCELLED'] : status === 'PAID' ? ['SHIPPED', 'CANCELLED'] : []; }
+  label(value?: string) { return ({ CLAIMED: 'Reservada', PRINTING: 'Em impressão', ERROR: 'Falha', DONE: 'Aceita pela impressora', PENDING: 'Pendente', PAID: 'Pago', LABEL_ISSUED: 'Etiqueta emitida', SHIPPED: 'Enviado', FULFILLED: 'Concluído', CANCELLED: 'Cancelado', DRAFT: 'Rascunho', READY: 'Pronto', ARCHIVED: 'Arquivado', CUSTOMER: 'Cliente', ADMIN: 'Administrador', SUPPORT: 'Suporte' } as Record<string, string>)[value || ''] || value || ''; }
+  transitions(status?: string) { return status === 'PENDING' ? ['PAID', 'CANCELLED'] : status === 'PAID' ? ['LABEL_ISSUED', 'CANCELLED'] : status === 'LABEL_ISSUED' ? ['SHIPPED'] : []; }
   start(row?: Row) {
     this.imageMessage.set('');
     this.form = emptyForm(); this.editingId = row?._id || ''; this.error.set(''); this.notice.set(''); this.pending.set(null); this.owners.set([]); this.ownerSearch = '';
@@ -145,24 +163,26 @@ export class AdminPage {
   }
   mutate(request: Observable<unknown>) {
     this.busy.set(true); this.error.set(''); this.notice.set('');
-    request.subscribe({ next: () => { this.busy.set(false); this.editor.set(false); this.pending.set(null); this.detail.set(null); this.notice.set('Alteração salva.'); this.load(); this.loadSummary(); }, error: e => { this.busy.set(false); this.fail(e); } });
+    request.subscribe({ next: () => { this.busy.set(false); this.shipping.set(null); this.editor.set(false); this.pending.set(null); this.detail.set(null); this.notice.set('Alteração salva.'); this.load(); this.loadSummary(); }, error: e => { this.busy.set(false); this.fail(e); } });
   }
   toggle(row: Row) { this.pending.set({ label: `${row.active ? 'Desativar' : 'Ativar'} ${row.name}?`, path: `admin/${this.tab()}/${row._id}/active`, body: { active: !row.active } }); }
   changeStatus(row: Row, status: string) {
-    if (status === 'SHIPPED') { this.pending.set({ label: `Gerar a etiqueta em PDF e marcar o pedido #${row._id.slice(-8)} como enviado?`, path: `admin/orders/${row._id}/ship`, body: {}, shipId: row._id }); return; }
+    if (status === 'SHIPPED') { this.shipping.set(row); this.trackingCode = ''; return; }
+    if (status === 'LABEL_ISSUED') { this.pending.set({ label: `Emitir a etiqueta em PDF do pedido #${row._id.slice(-8)}? O envio sera confirmado separadamente.`, path: `admin/orders/${row._id}/ship`, body: {}, shipId: row._id }); return; }
     this.pending.set({ label: `Alterar pedido #${row._id.slice(-8)} para ${this.label(status)}? Esta ação não realiza cobrança, estorno ou movimentação de estoque.`, path: `admin/orders/${row._id}/status`, body: { status } });
   }
+  retryPrint(row: Row) { this.pending.set({ label: 'Confirme que o monitor esta parado e que a etiqueta nao foi impressa. Reenfileirar pode gerar uma copia se a impressora ja recebeu o trabalho.', path: 'admin/orders/' + row._id + '/retry-print', body: {}, post: true }); }
   removeProduct(row: Row) { this.pending.set({ label: `Excluir definitivamente ${row.name} do catálogo? O produto deixará de estar disponível. Os dados dos pedidos antigos serão preservados.`, path: `admin/products/${row._id}`, body: {}, remove: true }); }
-  confirm() { const action = this.pending(); if (action && !this.busy()) { if (action.shipId) { this.downloadLabel(action.shipId, true); return; } this.mutate(action.remove ? this.api.delete(action.path) : this.api.patch(action.path, action.body)); } }
+  confirm() { const action = this.pending(); if (action && !this.busy()) { if (action.shipId) { this.downloadLabel(action.shipId, true); return; } this.mutate(action.post ? this.api.post(action.path, action.body) : action.remove ? this.api.delete(action.path) : this.api.patch(action.path, action.body)); } }
   downloadLabel(id: string, ship = false) {
     if (this.busy()) return;
     this.busy.set(true); this.error.set(''); this.notice.set('');
-    this.api.download(`admin/orders/${id}/${ship ? 'ship' : 'shipping-label'}`, ship).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+    this.api.download(`admin/orders/${id}/${ship ? 'issue-label' : 'shipping-label'}`, ship).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: pdf => {
         const url = URL.createObjectURL(pdf); const link = document.createElement('a'); link.href = url; link.download = `etiqueta-${id}.pdf`;
         document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
         this.busy.set(false); this.pending.set(null); this.detail.set(null); this.load(); this.loadSummary();
-        this.notice.set(ship ? 'Pedido marcado como enviado. Etiqueta em PDF gerada.' : 'Etiqueta em PDF gerada novamente.');
+        this.notice.set(ship ? 'Etiqueta emitida. Informe o rastreio quando despachar o pedido.' : 'Etiqueta em PDF gerada novamente.');
       },
       error: async e => {
         this.busy.set(false);

@@ -1,0 +1,19 @@
+name: iot-print-test
+services:
+  database:
+    image: mongo:8
+    volumes:
+      - print_test_data:/data/db
+  api:
+    build: ./backend
+    env_file: .print-test.env
+    environment:
+      PORT: 3000
+      MONGODB_URI: mongodb://database:27017/iot_platform_print_test
+      JWT_EXPIRES_IN: 1d
+    ports:
+      - "3001:3000"
+    depends_on:
+      - database
+volumes:
+  print_test_data:

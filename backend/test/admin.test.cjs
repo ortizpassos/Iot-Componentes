@@ -68,7 +68,10 @@ test('HTTP authorization requires current active ADMIN, not the JWT role claim',
   for (const path of ['admin/products', 'admin/orders', 'admin/devices', 'admin/projects']) {
     assert.equal((await request(path, { headers: headers() })).status, 403);
   }
+  assert.equal((await request('admin/administrators', { method: 'POST', headers: headers(), body: '{}' })).status, 403);
   account.role = 'ADMIN';
+  assert.equal((await request(`admin/orders/${id}/ship`, { method: 'POST', headers: headers(), body: '{}' })).status, 400);
+  assert.equal((await request(`admin/orders/${id}/ship`, { method: 'POST', headers: headers(), body: JSON.stringify({ trackingCode: '  ' }) })).status, 400);
   assert.equal((await request('settings/shipping-sender', { headers: headers() })).status, 200);
   assert.equal((await request('settings/shipping-sender', { method: 'PUT', headers: headers(), body: '{}' })).status, 400);
   const sender = { fullName: 'Loja Teste', address: { zipCode: '01001000', street: 'Rua Teste', number: '10', neighborhood: 'Centro', city: 'São Paulo', state: 'SP' } };
@@ -198,4 +201,17 @@ test('product image field supports uploaded paths, safe external URLs and remova
   const validate = imageUrl => pipe.transform({ ...product, imageUrl }, { type: 'body', metatype: CreateProductDto });
   for (const url of ['', 'https://example.com/image.jpg', 'http://localhost:3000/image.png', '/api/product-images/00000000-0000-0000-0000-000000000000.png']) assert.equal((await validate(url)).imageUrl, url);
   for (const url of ['javascript:alert(1)', 'data:image/png;base64,123', '//example.com/a.png', '/api/product-images/../.env', 'https://user:password@example.com/a.png', 'file:///etc/passwd', 'https://example.com/' + 'a'.repeat(2048)]) await assert.rejects(validate(url), e => e.getStatus() === 400);
+});
+
+test('admin creation hashes passwords, normalizes email and handles duplicates', async () => {
+  let stored;
+  const users = { create: async data => { stored = data; return { _id: id, ...data }; } };
+  const service = new AdminService(null, null, users, null, null, null);
+  const result = await service.createAdmin({ name: ' Admin ', email: 'ADMIN@example.com', password: 'test-password-123' });
+  assert.equal(stored.role, 'ADMIN'); assert.equal(stored.active, true);
+  assert.equal(stored.email, 'admin@example.com');
+  assert.ok(await require('bcrypt').compare('test-password-123', stored.password));
+  assert.equal(result.password, undefined);
+  users.create = async () => { throw { code: 11000 }; };
+  await assert.rejects(service.createAdmin({ name: 'Admin', email: 'a@example.com', password: 'test-password' }), e => e.getStatus() === 409);
 });
