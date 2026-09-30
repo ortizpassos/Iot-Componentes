@@ -22,6 +22,8 @@ test('datasheets validate content and size and reject path traversal', async () 
 test('product accepts documents and HTTP references and rejects unsafe links', async () => {
   const pipe = new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true });
   const validate = data => pipe.transform({ name: 'Sensor', sku: 'S1', type: 'SENSOR', price: 10, stock: 1, ...data }, { type: 'body', metatype: CreateProductDto });
+  const withoutSku = await pipe.transform({ name: 'Sensor', type: 'SENSOR', price: 10, stock: 1 }, { type: 'body', metatype: CreateProductDto });
+  assert.equal(withoutSku.sku, undefined);
   await validate({ references: [{ label: 'Manual', url: 'https://example.com/manual' }] });
   await assert.rejects(validate({ references: [{ label: 'Manual', url: 'javascript:alert(1)' }] }));
   await assert.rejects(validate({ datasheetUrl: '/api/product-datasheets/../../secret.pdf' }));

@@ -154,8 +154,8 @@ export class AdminPage {
       if (this.tab() === 'products') {
         if (f.additionalImageUrls.length > 4 || f.additionalImageUrls.some(url => !url.trim() || !this.validImageUrl(url.trim()))) throw new Error('Preencha os links das imagens adicionais ou remova os campos vazios.');
         if (!this.validImageUrl(f.imageUrl.trim())) throw new Error('Informe um link HTTP/HTTPS válido para a imagem.');
-        if (!f.sku.trim() || !Number.isInteger(f.stock)) throw new Error('Informe o SKU e um estoque inteiro.');
-        body = { name: f.name.trim(), sku: f.sku.trim(), type: f.type, price: f.price, stock: f.stock, active: f.active, description: f.description, imageUrl: f.imageUrl.trim(), manufacturer: f.manufacturer, model: f.model,
+        if (!Number.isInteger(f.stock)) throw new Error('Informe um estoque inteiro.');
+        body = { name: f.name.trim(), ...(f.sku.trim() ? { sku: f.sku.trim() } : {}), type: f.type, price: f.price, stock: f.stock, active: f.active, description: f.description, imageUrl: f.imageUrl.trim(), manufacturer: f.manufacturer, model: f.model,
           datasheetUrl: f.datasheetUrl, references: f.references.map(ref => ({ label: ref.label.trim(), url: ref.url.trim() })), additionalImageUrls: f.additionalImageUrls.map(url => url.trim()), installmentFeePayer: f.installmentFeePayer, specifications: this.object(f.specifications, 'Especificações'), programming: { supported: f.supported, platform: f.platform, chip: f.chip } };
       } else if (this.tab() === 'devices') {
         body = { name: f.name.trim(), ownerId: f.ownerId, board: f.board.trim(), model: f.model, ...(f.serialNumber.trim() ? { serialNumber: f.serialNumber.trim() } : {}), macAddress: f.macAddress, hardware: this.object(f.hardware, 'Hardware') };

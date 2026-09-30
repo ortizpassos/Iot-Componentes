@@ -49,8 +49,8 @@ export class CreateProductDto {
 
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
-  @IsNotEmpty()
-  sku!: string;
+  @IsOptional()
+  sku?: string;
 
   @IsOptional()
   @IsString()

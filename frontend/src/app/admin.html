@@ -30,7 +30,7 @@
   <form #editForm="ngForm" (ngSubmit)="save(editForm)"><fieldset [disabled]="busy()"><div class="form-grid">
     <label>Nome<input name="name" [(ngModel)]="form.name" required></label>
     @if (tab() === 'products') {
-      <label>SKU<input name="sku" [(ngModel)]="form.sku" required placeholder="Ex.: ESP32-S3-001"></label><label>Tipo<select name="type" [(ngModel)]="form.type">@for (type of productTypes; track type.value) { <option [value]="type.value">{{ type.label }}</option> }</select></label>
+      <label>SKU <span class="muted">(opcional)</span><input name="sku" [(ngModel)]="form.sku" placeholder="Gerado automaticamente se vazio"></label><label>Tipo<select name="type" [(ngModel)]="form.type">@for (type of productTypes; track type.value) { <option [value]="type.value">{{ type.label }}</option> }</select></label>
       <label class="wide">Descrição<textarea name="description" [(ngModel)]="form.description" placeholder="Descreva as características, aplicações e o que acompanha o componente."></textarea></label>
       <section class="wide image-editor"><h3>Imagens do componente</h3><p class="muted">Cadastre até 5 imagens: uma capa e quatro adicionais. Envie arquivos JPG, PNG ou WebP de até 5 MB cada, ou use links.</p>
         <label>Enviar imagem<input type="file" accept="image/jpeg,image/png,image/webp" (change)="uploadImage($event)"></label>

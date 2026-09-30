@@ -52,7 +52,7 @@ Se a página abrir, mas mostrar **Acesso restrito**, verifique a permissão da c
 
 Se a API estiver indisponível, confira os logs do backend e a variável `MONGODB_URI` no Render. O marcador `<db_password>` da URI do Atlas precisa ser substituído pela senha real (com caracteres especiais codificados na URL); mantenha também o nome do banco correto no caminho da URI. Não coloque essa credencial no frontend nem no repositório.
 
-Para cadastrar componentes: entre em `/adm`, abra **Produtos** e clique em **Cadastrar componente**. Informe nome, SKU, tipo, descrição, preço em reais e estoque. Mantenha **Produto ativo no catálogo** marcado para exibir o item na loja. Os mesmos dados podem ser alterados no botão **Editar**; especificações avançadas são opcionais.
+Para cadastrar componentes: entre em `/adm`, abra **Produtos** e clique em **Cadastrar componente**. Informe nome, tipo, descrição, preço em reais e estoque. O SKU é opcional e será gerado automaticamente pelo backend quando ficar vazio. Mantenha **Produto ativo no catálogo** marcado para exibir o item na loja. Os mesmos dados podem ser alterados no botão **Editar**; especificações avançadas são opcionais.
 
 Em **Imagem do componente**, use **Enviar imagem** (JPG, PNG ou WebP de até 5 MB) ou preencha **Link da imagem** com uma URL HTTP/HTTPS direta. Confira a prévia e clique em **Salvar**. Na edição, é possível substituir ou remover a imagem. Se um link deixar de funcionar, o catálogo exibe um marcador de imagem indisponível. Links externos dependem do servidor de origem; prefira HTTPS quando a loja estiver publicada em HTTPS.
 

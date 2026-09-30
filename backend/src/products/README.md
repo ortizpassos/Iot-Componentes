@@ -8,7 +8,7 @@ Módulo registrado no AppModule, com persistência no MongoDB.
 
 Consultas públicas; cadastro exige Bearer Token de uma conta ADMIN ativa. A gestão de produtos, incluindo inativos, está disponível em `/adm` e `/api/admin/products`.
 
-Preço deve ser não negativo, estoque deve ser inteiro não negativo e nome/SKU não podem estar vazios. `programming` aceita `supported` (boolean), `platform` e `chip` (strings). `specifications` aceita um objeto livre.
+Preço deve ser não negativo, estoque deve ser inteiro não negativo e o nome não pode estar vazio. O SKU é opcional no cadastro; quando omitido, a API gera um identificador no formato `TIPO-000001`, mantendo a sequência por tipo. SKUs informados manualmente continuam sendo aceitos e devem ser únicos. `programming` aceita `supported` (boolean), `platform` e `chip` (strings). `specifications` aceita um objeto livre.
 
 Use `../../products.http` no REST Client do VS Code ou copie o JSON para Postman/Insomnia. Inicie a API com `npm run start:dev` dentro de `backend`.
 

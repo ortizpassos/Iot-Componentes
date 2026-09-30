@@ -9,9 +9,10 @@ import { Project, ProjectSchema } from '../projects/schemas/project.schema';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { SettingsModule } from '../settings/settings.module';
+import { ProductSkuModule } from '../products/product-sku.module';
 
 @Module({
-  imports: [SettingsModule, MongooseModule.forFeature([
+  imports: [SettingsModule, ProductSkuModule, MongooseModule.forFeature([
     { name: Product.name, schema: ProductSchema }, { name: Order.name, schema: OrderSchema },
     { name: User.name, schema: UserSchema }, { name: Device.name, schema: DeviceSchema },
     { name: Project.name, schema: ProjectSchema },

@@ -12,6 +12,7 @@ import { Project } from '../projects/schemas/project.schema';
 import { AdminDeviceDto, AdminListDto, AdminProjectDto } from './admin.dto';
 import { shippingLabel } from './shipping-label';
 import { SettingsService } from '../settings/settings.module';
+import { ProductSkuService } from '../products/product-sku.service';
 
 @Injectable()
 export class AdminService {
@@ -22,6 +23,7 @@ export class AdminService {
     @InjectModel(Device.name) private readonly devices: Model<Device>,
     @InjectModel(Project.name) private readonly projects: Model<Project>,
     private readonly settings: SettingsService,
+    private readonly productSkuService: ProductSkuService,
   ) {}
 
   private id(id: string) {
@@ -62,7 +64,10 @@ export class AdminService {
     return { products, activeProducts, orders, pendingOrders, customers, admins, devices, projects };
   }
   listProducts(query: AdminListDto) { return this.list(this.products, query, ['name', 'sku', 'model']); }
-  createProduct(dto: CreateProductDto) { return this.write(() => this.products.create(dto)); }
+  async createProduct(dto: CreateProductDto) {
+    const data = dto.sku ? dto : { ...dto, sku: await this.productSkuService.next(dto.type) };
+    return this.write(() => this.products.create(data));
+  }
   async deleteProduct(id: string) {
     const result = await this.products.deleteOne({ _id: this.id(id) });
     if (!result.deletedCount) throw new NotFoundException('Produto não encontrado.');
