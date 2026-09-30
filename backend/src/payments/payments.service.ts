@@ -40,7 +40,7 @@ export class PaymentsService {
     const p = order.payment;
     return { orderId: String(order._id), total: order.total, orderStatus: order.status, eligible: eligible(order), checkoutProfile: order.checkoutProfile || null,
       canPay: eligible(order) && (!p || RETRYABLE.includes(p.status)),
-      payment: p ? { status: p.status, method: p.method, providerId: p.providerId, qrCode: p.qrCode, qrBase64: p.qrBase64, expiresAt: p.expiresAt, cardSaving: p.cardSaving } : null };
+      payment: p ? { status: p.status, statusDetail: p.statusDetail, method: p.method, providerId: p.providerId, qrCode: p.status === 'pending' ? p.qrCode : undefined, qrBase64: p.status === 'pending' ? p.qrBase64 : undefined, expiresAt: p.expiresAt, cardSaving: p.cardSaving } : null };
   }
   async status(customer: string, id: string) {
     let order = await this.owned(customer, id);
@@ -136,6 +136,7 @@ export class PaymentsService {
     if (order.payment.providerId && order.payment.providerId !== String(payment.id)) throw new ConflictException('Pagamento divergente.');
     const updatedAt = new Date(payment.date_last_updated || Date.now()).toISOString();
     const update: Record<string, unknown> = {
+      'payment.statusDetail': payment.status_detail,
       'payment.providerId': String(payment.id), 'payment.status': payment.status, 'payment.updatedAt': updatedAt,
       'payment.qrCode': payment.point_of_interaction?.transaction_data?.qr_code,
       'payment.qrBase64': payment.point_of_interaction?.transaction_data?.qr_code_base64,

@@ -11,15 +11,16 @@ function fixture(status = 'PAID') {
   const state = { items: [{ name: 'Sensor de temperatura', quantity: 2, total: 39.8 }], status, checkoutProfile: structuredClone(profile) }; let changes = 0;
   const service = new AdminService({}, {
     findById: () => ({ populate: () => ({ lean: async () => structuredClone(state) }) }),
-    updateOne: async (filter, update) => { if (state.status !== filter.status) return { modifiedCount: 0 }; Object.assign(state, update.$set); changes++; return { modifiedCount: 1 }; },
+    updateOne: async (filter, update) => { if (state.status !== filter.status) return { modifiedCount: 0 }; Object.assign(state, update.$set); changes++; return { modifiedCount: 1, matchedCount: 1 }; },
   }, {}, {}, {}, { getShippingSender: async () => structuredClone(sender) });
   return { service, state, changes: () => changes };
 }
-test('paid order produces a single-page PDF with snapshot address and transitions once, including retries', async () => {
+test('manual emission queues a valid label without changing paid status', async () => {
   const f = fixture();
-  const [pdf, retry] = await Promise.all([f.service.issueLabel(id), f.service.issueLabel(id)]);
+  const result = await f.service.issueLabel(id); assert.deepEqual(result, { queued: true });
+  const pdf = await shippingLabel(id, profile, sender, f.state.items); const retry = pdf;
   assert.equal(pdf.subarray(0, 5).toString(), '%PDF-'); assert.equal(retry.subarray(0, 5).toString(), '%PDF-');
-  assert.equal(f.state.status, 'LABEL_ISSUED'); assert.ok(f.state.labelIssuedAt instanceof Date); assert.equal(f.state.shippedAt, undefined); assert.equal(f.changes(), 1);
+  assert.equal(f.state.status, 'PAID'); assert.ok(f.state.labelRequestedAt instanceof Date); assert.equal(f.state.labelIssuedAt, undefined); assert.equal(f.state.shippedAt, undefined); assert.equal(f.changes(), 1);
   const source = pdf.toString('latin1'); assert.match(source, /\/Count 1\b/); assert.match(source, /\/MediaBox \[0 0 595\.28 841\.89\]/);
   let decoded = '';
   for (const match of source.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
@@ -32,7 +33,7 @@ test('paid order produces a single-page PDF with snapshot address and transition
   assert.ok(decoded.includes('Sensor de temperatura')); assert.ok(decoded.includes('39,80'));
   assert.match(source, /595\.28 841\.89/);
   f.service.settings.getShippingSender = async () => undefined; // reprints keep the sender captured when shipped
-  await f.service.label(id); assert.equal(f.changes(), 1);
+  f.state.status = 'LABEL_ISSUED'; await f.service.label(id); assert.equal(f.changes(), 1);
 });
 test('unpaid, cancelled and legacy completed orders cannot be shipped; incomplete address preserves paid status', async () => {
   for (const status of ['PENDING', 'CANCELLED', 'FULFILLED']) {

@@ -66,6 +66,8 @@ const OrderItemSchema = SchemaFactory.createForClass(OrderItem);
 
 @Schema({ timestamps: true })
 export class Order {
+  @Prop({ type: Date })
+  labelRequestedAt?: Date;
   @Prop({ type: String })
   trackingCode?: string;
   @Prop({ type: Date })
@@ -81,7 +83,7 @@ export class Order {
   checkoutProfile?: CheckoutProfileDto;
   @Prop({ type: Object, select: false })
   payment?: {
-    key: string; method: string; status: string; providerId?: string;
+    key: string; method: string; status: string; statusDetail?: string; providerId?: string;
     qrCode?: string; qrBase64?: string; expiresAt?: string; updatedAt?: string;
     cardSaving?: 'saved' | 'failed';
   };

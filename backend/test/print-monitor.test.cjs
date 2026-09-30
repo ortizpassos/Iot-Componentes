@@ -14,7 +14,7 @@ test('monitor credentials are required and distinct from customer tokens', () =>
 });
 test('claim requires provider approval, paid state and no previous print attempt', async () => {
   const service = new PrintMonitorService({ findOneAndUpdate: (filter, update) => {
-    assert.deepEqual(filter, { status: 'PAID', 'payment.status': 'approved', printJob: { $exists: false } });
+    assert.deepEqual(filter, { status: 'PAID', $or: [{ 'payment.status': 'approved' }, { labelRequestedAt: { $exists: true } }], printJob: { $exists: false } });
     assert.equal(update.$set.printJob.state, 'CLAIMED');
     return { select: () => ({ lean: async () => ({ _id: id, printJob: update.$set.printJob }) }) };
   } }, {});

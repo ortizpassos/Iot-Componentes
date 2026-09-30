@@ -155,3 +155,20 @@ test('card uses provider token and checkout handles missing credentials', async 
   await expect(page.getByText('Pagamento aprovado! Seu pedido foi confirmado.')).toBeVisible();
   expect(sent).toEqual({ method: 'card', token: 'card-token', paymentMethodId: 'visa', issuerId: '1', installments: 1, payer, saveCard: true, useSavedCard: false });
 });
+
+test('rejected Pix explains rejection and does not display obsolete QR data', async ({ page }) => {
+  await page.addInitScript(() => sessionStorage.setItem('iot-token', 'customer'));
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/payments/' + id) return route.fulfill({ json: { orderId: id, total: 1, orderStatus: 'PENDING', eligible: true, canPay: true, checkoutProfile: profile, payment: { status: 'rejected', statusDetail: 'test_rejection', method: 'pix', qrCode: 'obsolete-code', qrBase64: 'obsolete-image' } } });
+    if (path === '/api/payments/config') return route.fulfill({ json: { enabled: true, publicKey: 'TEST-key' } });
+    if (path === '/api/payments/saved-card') return route.fulfill({ json: { card: null, customerId: null } });
+    return route.fulfill({ json: {} });
+  });
+  await page.goto('/pagamento/' + id);
+  await expect(page.getByRole('alert')).toContainText('rejeitou');
+  await expect(page.getByRole('alert')).toContainText('test_rejection');
+  await expect(page.getByRole('img', { name: 'QR Code Pix para pagar o pedido' })).toHaveCount(0);
+  await expect(page.getByLabel('Pix copia e cola')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Gerar novo QR Code Pix' })).toBeVisible();
+});

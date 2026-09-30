@@ -22,7 +22,7 @@ export class AdminController {
   @Post('orders/:id/retry-print') retryPrint(@Param('id') id: string) { return this.admin.retryPrint(id); }
   @Post('orders/:id/ship') ship(@Param('id') id: string, @Body() dto: ShipmentDto) { return this.admin.shipOrder(id, dto.trackingCode); }
   @Post('orders/:id/issue-label') @Header('Cache-Control', 'no-store')
-  async issueLabel(@Param('id') id: string) { return new StreamableFile(await this.admin.issueLabel(id), { type: 'application/pdf', disposition: 'attachment; filename="etiqueta.pdf"' }); }
+  issueLabel(@Param('id') id: string) { return this.admin.issueLabel(id); }
   @Get('orders/:id/shipping-label') @Header('Cache-Control', 'no-store')
   async label(@Param('id') id: string) { return new StreamableFile(await this.admin.label(id), { type: 'application/pdf', disposition: `attachment; filename="etiqueta-${id}.pdf"` }); }
   @Patch('orders/:id/status') orderStatus(@Param('id') id: string, @Body() dto: OrderStatusDto) { return this.admin.orderStatus(id, dto.status); }

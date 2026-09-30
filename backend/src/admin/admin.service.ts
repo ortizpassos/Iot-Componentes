@@ -104,13 +104,13 @@ export class AdminService {
   }
   async issueLabel(id: string) {
     const order = await this.order(id);
-    if ([OrderStatus.LABEL_ISSUED, OrderStatus.SHIPPED].includes(order.status)) return this.label(id);
-    if (order.status !== OrderStatus.PAID) throw new ConflictException('Somente pedidos pagos podem emitir etiqueta.');
+    if (order.status !== OrderStatus.PAID) throw new ConflictException('Somente pedidos pagos podem solicitar impressao.');
     const sender = await this.settings.getShippingSender();
-    const pdf = await shippingLabel(id, order.checkoutProfile, sender, order.items);
-    const result = await this.orders.updateOne({ _id: this.id(id), status: OrderStatus.PAID, $or: [{ printJob: { $exists: false } }, { 'printJob.state': 'ERROR' }] }, { $set: { status: OrderStatus.LABEL_ISSUED, labelIssuedAt: new Date(), shippingSender: sender } });
-    if (!result.modifiedCount) { const current = await this.order(id); if ([OrderStatus.LABEL_ISSUED, OrderStatus.SHIPPED].includes(current.status)) return this.label(id); throw new ConflictException('Pedido alterado ou em impressao automatica. Atualize a lista.'); }
-    return pdf;
+    // Validate label data before enqueueing. Only the monitor acknowledges issuance.
+    await shippingLabel(id, order.checkoutProfile, sender, order.items);
+    const result = await this.orders.updateOne({ _id: this.id(id), status: OrderStatus.PAID, printJob: { $exists: false } }, { $set: { labelRequestedAt: new Date(), shippingSender: sender } });
+    if (!result.matchedCount) throw new ConflictException('Pedido alterado ou com tentativa de impressao registrada. Atualize a lista e revise a tentativa existente.');
+    return { queued: true };
   }
   async label(id: string) {
     const order = await this.order(id);

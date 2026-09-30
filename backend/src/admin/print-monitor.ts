@@ -47,7 +47,7 @@ export class PrintMonitorService {
   constructor(@InjectModel(Order.name) private readonly orders: Model<Order>, private readonly settings: SettingsService) {}
   async claim() {
     // Claim atomically; a repeated payment webhook cannot enqueue a second label.
-    const order = await this.orders.findOneAndUpdate({ status: OrderStatus.PAID, 'payment.status': 'approved', printJob: { $exists: false } },
+    const order = await this.orders.findOneAndUpdate({ status: OrderStatus.PAID, $or: [{ 'payment.status': 'approved' }, { labelRequestedAt: { $exists: true } }], printJob: { $exists: false } },
       { $set: { printJob: { token: randomUUID(), state: 'CLAIMED', claimedAt: new Date() } } },
       { new: true, sort: { createdAt: 1 } }).select('+printJob').lean();
     return order ? { id: String(order._id), token: order.printJob!.token } : null;

@@ -2,6 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 export interface ProviderPayment {
+  status_detail?: string;
   id: number | string; status: string; external_reference: string; currency_id: string;
   transaction_amount: number; date_last_updated?: string; date_of_expiration?: string;
   payment_method_id?: string; point_of_interaction?: { transaction_data?: { qr_code?: string; qr_code_base64?: string } };

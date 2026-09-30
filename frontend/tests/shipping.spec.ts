@@ -17,23 +17,26 @@ test('paid order downloads label, displays issued label status and allows reprin
     if (path === `/api/admin/orders/${id}/issue-label`) {
       expect(request.method()).toBe('POST'); expect(request.headers()['authorization']).toBe('Bearer admin-token'); ships++;
       if (failed) return route.fulfill({ status: 400, json: { message: 'O pedido não possui dados de entrega completos.' } });
-      status = 'LABEL_ISSUED'; return route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.3\nshipping-test\n%%EOF' });
+      return route.fulfill({ json: { queued: true } });
     }
     if (path === `/api/admin/orders/${id}/shipping-label`) { expect(request.method()).toBe('GET'); reprints++; return route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.3\nshipping-test\n%%EOF' }); }
     if (path === `/api/orders/${id}`) return route.fulfill({ json: order });
     return route.fulfill({ status: 404, json: {} });
   });
   await page.goto('/adm'); await page.getByRole('button', { name: 'Pedidos', exact: true }).click();
-  await page.getByRole('button', { name: 'Emitir etiqueta PDF' }).click();
+  await page.getByRole('button', { name: 'Emitir etiqueta' }).click();
   expect(ships).toBe(0);
   await page.getByRole('button', { name: 'Confirmar alteração' }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'O pedido não possui' })).toContainText('dados de entrega completos'); expect(status).toBe('PAID');
   failed = false;
-  const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Confirmar alteração' }).click();
-  expect((await download).suggestedFilename()).toBe(`etiqueta-${id}.pdf`);
+  await expect(page.getByRole('status').filter({ hasText: 'Etiqueta na fila' })).toBeVisible();
+  expect(status).toBe('PAID');
+  // Simulate the independent monitor acknowledgement after printer acceptance.
+  status = 'LABEL_ISSUED';
+  await page.getByRole('button', { name: 'Atualizar', exact: true }).click();
   await expect(page.getByText('Etiqueta emitida', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Emitir etiqueta PDF' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Emitir etiqueta' })).toHaveCount(0);
   const reprint = page.waitForEvent('download'); await page.getByRole('button', { name: 'Baixar etiqueta' }).click();
   expect((await reprint).suggestedFilename()).toBe(`etiqueta-${id}.pdf`); expect(reprints).toBe(1); expect(ships).toBe(2);
   await page.getByRole('button', { name: 'Informar rastreio e enviar' }).click();

@@ -43,7 +43,7 @@ export class AdminPage {
   loading = signal(false); busy = signal(false); error = signal(''); notice = signal(''); summaryError = signal(false);
   editor = signal(false); editingId = ''; form = emptyForm(); search = ''; page = signal(1); total = signal(0);
   detail = signal<(Order & { customer?: Person }) | null>(null);
-  pending = signal<{ label: string; path: string; body: object; remove?: boolean; post?: boolean; shipId?: string } | null>(null);
+  pending = signal<{ label: string; path: string; body: object; remove?: boolean; post?: boolean; successMessage?: string } | null>(null);
   ownerSearch = ''; owners = signal<Row[]>([]); ownerLoading = signal(false);
   tabs: { key: Tab; label: string }[] = [{ key: 'products', label: 'Produtos' }, { key: 'orders', label: 'Pedidos' }, { key: 'users', label: 'Clientes' }, { key: 'administrators', label: 'Administradores' }, { key: 'devices', label: 'Dispositivos' }, { key: 'projects', label: 'Projetos' }, { key: 'settings', label: 'Configurações do site' }];
   productTypes = [
@@ -162,27 +162,28 @@ export class AdminPage {
     this.mutate(this.editingId ? this.api.put(`${path}/${this.editingId}`, body) : this.api.post(path, body));
   }
   mutate(request: Observable<unknown>) {
+    const successMessage = this.pending()?.successMessage || 'Alteração salva.';
     this.busy.set(true); this.error.set(''); this.notice.set('');
-    request.subscribe({ next: () => { this.busy.set(false); this.shipping.set(null); this.editor.set(false); this.pending.set(null); this.detail.set(null); this.notice.set('Alteração salva.'); this.load(); this.loadSummary(); }, error: e => { this.busy.set(false); this.fail(e); } });
+    request.subscribe({ next: () => { this.busy.set(false); this.shipping.set(null); this.editor.set(false); this.pending.set(null); this.detail.set(null); this.notice.set(successMessage); this.load(); this.loadSummary(); }, error: e => { this.busy.set(false); this.fail(e); } });
   }
   toggle(row: Row) { this.pending.set({ label: `${row.active ? 'Desativar' : 'Ativar'} ${row.name}?`, path: `admin/${this.tab()}/${row._id}/active`, body: { active: !row.active } }); }
   changeStatus(row: Row, status: string) {
     if (status === 'SHIPPED') { this.shipping.set(row); this.trackingCode = ''; return; }
-    if (status === 'LABEL_ISSUED') { this.pending.set({ label: `Emitir a etiqueta em PDF do pedido #${row._id.slice(-8)}? O envio sera confirmado separadamente.`, path: `admin/orders/${row._id}/ship`, body: {}, shipId: row._id }); return; }
+    if (status === 'LABEL_ISSUED') { this.pending.set({ label: `Enviar a etiqueta do pedido #${row._id.slice(-8)} para a impressora?`, path: `admin/orders/${row._id}/issue-label`, body: {}, post: true, successMessage: 'Etiqueta na fila. O monitor imprimira quando estiver conectado. Atualize a lista para acompanhar.' }); return; }
     this.pending.set({ label: `Alterar pedido #${row._id.slice(-8)} para ${this.label(status)}? Esta ação não realiza cobrança, estorno ou movimentação de estoque.`, path: `admin/orders/${row._id}/status`, body: { status } });
   }
   retryPrint(row: Row) { this.pending.set({ label: 'Confirme que o monitor esta parado e que a etiqueta nao foi impressa. Reenfileirar pode gerar uma copia se a impressora ja recebeu o trabalho.', path: 'admin/orders/' + row._id + '/retry-print', body: {}, post: true }); }
   removeProduct(row: Row) { this.pending.set({ label: `Excluir definitivamente ${row.name} do catálogo? O produto deixará de estar disponível. Os dados dos pedidos antigos serão preservados.`, path: `admin/products/${row._id}`, body: {}, remove: true }); }
-  confirm() { const action = this.pending(); if (action && !this.busy()) { if (action.shipId) { this.downloadLabel(action.shipId, true); return; } this.mutate(action.post ? this.api.post(action.path, action.body) : action.remove ? this.api.delete(action.path) : this.api.patch(action.path, action.body)); } }
-  downloadLabel(id: string, ship = false) {
+  confirm() { const action = this.pending(); if (action && !this.busy()) { this.mutate(action.post ? this.api.post(action.path, action.body) : action.remove ? this.api.delete(action.path) : this.api.patch(action.path, action.body)); } }
+  downloadLabel(id: string) {
     if (this.busy()) return;
     this.busy.set(true); this.error.set(''); this.notice.set('');
-    this.api.download(`admin/orders/${id}/${ship ? 'issue-label' : 'shipping-label'}`, ship).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+    this.api.download(`admin/orders/${id}/shipping-label`).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: pdf => {
         const url = URL.createObjectURL(pdf); const link = document.createElement('a'); link.href = url; link.download = `etiqueta-${id}.pdf`;
         document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
         this.busy.set(false); this.pending.set(null); this.detail.set(null); this.load(); this.loadSummary();
-        this.notice.set(ship ? 'Etiqueta emitida. Informe o rastreio quando despachar o pedido.' : 'Etiqueta em PDF gerada novamente.');
+        this.notice.set('Etiqueta em PDF gerada novamente.');
       },
       error: async e => {
         this.busy.set(false);

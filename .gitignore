@@ -10,6 +10,6 @@ test-results/
 .DS_Store
 backend/uploads/
 
-Monitor_impressora/config.h
+/Monitor_impressora/
 
 .print-test.env

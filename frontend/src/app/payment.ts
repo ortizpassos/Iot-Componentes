@@ -11,7 +11,7 @@ import { CheckoutProfile, CheckoutProfileForm } from './checkout-profile';
 interface PaymentView {
   checkoutProfile?: CheckoutProfile | null;
   orderId: string; total: number; orderStatus: string; eligible: boolean; canPay: boolean;
-  payment: { status: string; method: string; providerId?: string; qrCode?: string; qrBase64?: string; expiresAt?: string; cardSaving?: 'saved' | 'failed' } | null;
+  payment: { status: string; statusDetail?: string; method: string; providerId?: string; qrCode?: string; qrBase64?: string; expiresAt?: string; cardSaving?: 'saved' | 'failed' } | null;
 }
 interface SavedCard { customerId: string | null; card: { id: string; lastFour: string; brand: string } | null }
 interface CardData { token: string; payment_method_id: string; issuer_id?: string | number; installments: number; payer: { email: string; type?: string; id?: string; identification: { type: string; number: string } } }
@@ -39,6 +39,7 @@ function loadSdk() {
     @if (data.checkoutProfile; as delivery) { <section class="panel"><h2>Entrega deste pedido</h2><p>{{ delivery.fullName }} · {{ delivery.address.street }}, {{ delivery.address.number }} {{ delivery.address.complement }}</p><p>{{ delivery.address.neighborhood }} · {{ delivery.address.city }}/{{ delivery.address.state }} · CEP {{ delivery.address.zipCode }}</p></section> }
     @if (data.payment?.cardSaving === 'saved') { <p class="notice" role="status">Cartão salvo como meio de pagamento padrão para as próximas compras.</p> }
     @if (data.payment?.cardSaving === 'failed') { <p class="notice" role="status">O pagamento foi enviado, mas não foi possível salvar o cartão. Não repita o pagamento por esse motivo.</p> }
+    @if (data.payment?.status === 'rejected') { <p class="error" role="alert">O Mercado Pago rejeitou esta tentativa de pagamento. O QR Code desta tentativa não está disponível para pagamento. Gere um novo Pix ou escolha cartão.@if (data.payment?.statusDetail) { <span> Código informado pelo Mercado Pago: {{ data.payment?.statusDetail }}.</span> }</p> }
     <div class="checkout"><section class="panel"><h2>Como deseja pagar?</h2>
       @if (data.orderStatus === 'PAID' || data.orderStatus === 'LABEL_ISSUED' || data.orderStatus === 'FULFILLED' || data.orderStatus === 'SHIPPED') { <p class="notice" role="status">Pagamento aprovado! Seu pedido foi confirmado.</p> }
       @else if (!data.eligible) { <p class="notice">Este pedido não está disponível para pagamento online. Consulte os detalhes do pedido.</p> }
@@ -49,7 +50,7 @@ function loadSdk() {
         <div class="filters"><button [disabled]="busy()" [class.selected]="method() === 'pix'" (click)="choosePix()">Pix</button><button [disabled]="busy()" [class.selected]="method() === 'card'" (click)="chooseCard()">Cartão</button></div>
         @if (method() === 'pix') {
           <p class="muted">Gere o QR Code e pague no aplicativo do seu banco.</p>
-          <form #pixForm="ngForm" (ngSubmit)="pix(pixForm)"><label>E-mail do pagador<input name="email" type="email" email required [(ngModel)]="email" [disabled]="busy()"></label><label>CPF do pagador<input name="cpf" inputmode="numeric" pattern="[0-9]{11}" maxlength="11" required [(ngModel)]="cpf" [disabled]="busy()" placeholder="Somente os 11 números"></label><button class="primary full" [disabled]="busy() || pixForm.invalid">{{ busy() ? 'Gerando Pix…' : 'Gerar QR Code Pix' }}</button></form>
+          <form #pixForm="ngForm" (ngSubmit)="pix(pixForm)"><label>E-mail do pagador<input name="email" type="email" email required [(ngModel)]="email" [disabled]="busy()"></label><label>CPF do pagador<input name="cpf" inputmode="numeric" pattern="[0-9]{11}" maxlength="11" required [(ngModel)]="cpf" [disabled]="busy()" placeholder="Somente os 11 números"></label><button class="primary full" [disabled]="busy() || pixForm.invalid">{{ busy() ? 'Gerando Pix…' : data.payment?.status === 'rejected' ? 'Gerar novo QR Code Pix' : 'Gerar QR Code Pix' }}</button></form>
         } @else {
           @if (savedCard().card; as card) { <p class="notice">Cartão padrão: {{ card.brand }} · final {{ card.lastFour }}</p><button class="text-button" [disabled]="busy() || sdkBusy()" (click)="forgetCard()">Deixar de usar cartão padrão</button> }
           <label class="save-card"><input type="checkbox" [(ngModel)]="saveCard" [disabled]="busy()">Deseja salvar este cartão como meio de pagamento padrão?</label>
