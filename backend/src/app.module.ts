@@ -13,6 +13,7 @@ import { SettingsModule } from './settings/settings.module';
 import { ProductImagesModule } from './product-images/product-images.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ProductDatasheetsModule } from './product-images/product-datasheets.module';
+import { ShippingModule } from './shipping/shipping.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { ProductDatasheetsModule } from './product-images/product-datasheets.mod
     ProductImagesModule,
     ProductDatasheetsModule,
     PaymentsModule,
+    ShippingModule,
   ],
   controllers: [HealthController],
 })

@@ -18,7 +18,7 @@ interface Row {
   additionalImageUrls?: string[];
   installmentFeePayer?: 'BUYER' | 'SELLER';
   _id: string; name?: string; email?: string; role?: string; active?: boolean; sku?: string;
-  price?: number; stock?: number; type?: string; description?: string; imageUrl?: string; manufacturer?: string; model?: string;
+  price?: number; stock?: number; type?: string; description?: string; imageUrl?: string; manufacturer?: string; model?: string; weightGrams?: number; lengthCm?: number; widthCm?: number; heightCm?: number;
   specifications?: Record<string, unknown>; programming?: { supported?: boolean; platform?: string; chip?: string };
   status?: string; total?: number; createdAt?: string; customer?: Person; owner?: Person;
   board?: string; serialNumber?: string; macAddress?: string; hardware?: Record<string, unknown>;
@@ -27,7 +27,7 @@ interface Row {
 interface Page { items: Row[]; total: number; page: number; limit: number }
 interface Summary { products: number; activeProducts: number; orders: number; pendingOrders: number; customers: number; admins: number; devices: number; projects: number }
 function emptyForm() {
-  return { datasheetUrl: '', references: [] as { label: string; url: string }[], additionalImageUrls: [] as string[], installmentFeePayer: 'BUYER', name: '', sku: '', type: 'BOARD', price: 0, stock: 0, active: true, description: '', imageUrl: '', manufacturer: '', model: '',
+  return { datasheetUrl: '', references: [] as { label: string; url: string }[], additionalImageUrls: [] as string[], installmentFeePayer: 'BUYER', name: '', sku: '', type: 'BOARD', price: 0, stock: 0, active: true, description: '', imageUrl: '', manufacturer: '', model: '', weightGrams: 0, lengthCm: 0, widthCm: 0, heightCm: 0,
     supported: false, platform: '', chip: '', specifications: '{}', ownerId: '', board: 'ESP32', serialNumber: '', macAddress: '', hardware: '{}',
     deviceId: '', source: 'MANUAL', status: 'DRAFT', configuration: '{}' };
 }
@@ -100,7 +100,7 @@ export class AdminPage {
     if (row) {
       this.form = { ...this.form, name: row.name || '', sku: row.sku || '', type: row.type || 'BOARD', price: row.price || 0, stock: row.stock || 0,
         datasheetUrl: row.datasheetUrl || '', references: (row.references || []).map(ref => ({ ...ref })), additionalImageUrls: [...(row.additionalImageUrls || [])], installmentFeePayer: row.installmentFeePayer || 'BUYER', active: row.active !== false, description: row.description || '', imageUrl: row.imageUrl || '', manufacturer: row.manufacturer || '', model: row.model || '',
-        supported: !!row.programming?.supported, platform: row.programming?.platform || '', chip: row.programming?.chip || '', specifications: JSON.stringify(row.specifications || {}, null, 2),
+        supported: !!row.programming?.supported, platform: row.programming?.platform || '', chip: row.programming?.chip || '', specifications: JSON.stringify(row.specifications || {}, null, 2), weightGrams: row.weightGrams || 0, lengthCm: row.lengthCm || 0, widthCm: row.widthCm || 0, heightCm: row.heightCm || 0,
         ownerId: row.owner?._id || '', board: row.board || '', serialNumber: row.serialNumber || '', macAddress: row.macAddress || '', hardware: JSON.stringify(row.hardware || {}, null, 2),
         deviceId: row.device || '', source: row.source || 'MANUAL', status: row.status || 'DRAFT', configuration: JSON.stringify(row.configuration || {}, null, 2) };
     }
@@ -155,7 +155,7 @@ export class AdminPage {
         if (f.additionalImageUrls.length > 4 || f.additionalImageUrls.some(url => !url.trim() || !this.validImageUrl(url.trim()))) throw new Error('Preencha os links das imagens adicionais ou remova os campos vazios.');
         if (!this.validImageUrl(f.imageUrl.trim())) throw new Error('Informe um link HTTP/HTTPS válido para a imagem.');
         if (!Number.isInteger(f.stock)) throw new Error('Informe um estoque inteiro.');
-        body = { name: f.name.trim(), ...(f.sku.trim() ? { sku: f.sku.trim() } : {}), type: f.type, price: f.price, stock: f.stock, active: f.active, description: f.description, imageUrl: f.imageUrl.trim(), manufacturer: f.manufacturer, model: f.model,
+        body = { name: f.name.trim(), ...(f.sku.trim() ? { sku: f.sku.trim() } : {}), type: f.type, price: f.price, stock: f.stock, active: f.active, description: f.description, imageUrl: f.imageUrl.trim(), manufacturer: f.manufacturer, model: f.model, ...(f.weightGrams > 0 ? { weightGrams: f.weightGrams, lengthCm: f.lengthCm, widthCm: f.widthCm, heightCm: f.heightCm } : {}),
           datasheetUrl: f.datasheetUrl, references: f.references.map(ref => ({ label: ref.label.trim(), url: ref.url.trim() })), additionalImageUrls: f.additionalImageUrls.map(url => url.trim()), installmentFeePayer: f.installmentFeePayer, specifications: this.object(f.specifications, 'Especificações'), programming: { supported: f.supported, platform: f.platform, chip: f.chip } };
       } else if (this.tab() === 'devices') {
         body = { name: f.name.trim(), ownerId: f.ownerId, board: f.board.trim(), model: f.model, ...(f.serialNumber.trim() ? { serialNumber: f.serialNumber.trim() } : {}), macAddress: f.macAddress, hardware: this.object(f.hardware, 'Hardware') };

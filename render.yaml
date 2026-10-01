@@ -29,3 +29,9 @@ services:
         sync: false
       - key: MP_ACCESS_TOKEN
         sync: false
+      - key: MELHOR_ENVIO_TOKEN
+        sync: false
+      - key: MELHOR_ENVIO_BASE_URL
+        value: https://melhorenvio.com.br
+      - key: MELHOR_ENVIO_USER_AGENT
+        sync: false

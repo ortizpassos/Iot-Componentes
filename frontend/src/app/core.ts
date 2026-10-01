@@ -13,7 +13,7 @@ export function resolveApiUrl(value: string) {
 }
 
 export interface User { id?: string; _id?: string; name: string; email: string; role: string }
-export interface Product { datasheetUrl?: string; references?: { label: string; url: string }[]; _id: string; name: string; sku: string; description?: string; imageUrl?: string; additionalImageUrls?: string[]; specifications?: Record<string, unknown>; type: string; price: number; stock: number; manufacturer?: string; model?: string; programming?: { supported?: boolean; platform?: string; chip?: string } }
+export interface Product { datasheetUrl?: string; references?: { label: string; url: string }[]; _id: string; name: string; sku: string; description?: string; imageUrl?: string; additionalImageUrls?: string[]; specifications?: Record<string, unknown>; type: string; price: number; stock: number; manufacturer?: string; model?: string; weightGrams?: number; lengthCm?: number; widthCm?: number; heightCm?: number; programming?: { supported?: boolean; platform?: string; chip?: string } }
 export interface Programming { requested: boolean; type: 'NONE' | 'STANDARD' | 'AI' | 'CUSTOM'; requirements?: string }
 export interface Order { trackingCode?: string; labelIssuedAt?: string; _id: string; status: string; total: number; createdAt: string; checkoutProfile?: CheckoutProfile; items: { productId: string; name: string; sku: string; quantity: number; unitPrice: number; total: number; programmingRequest: Programming }[] }
 export interface Device { _id: string; name: string; board: string; model?: string; online: boolean }
@@ -55,9 +55,11 @@ export class Api {
 }
 export function errorMessage(error: unknown): string {
   if (error instanceof HttpErrorResponse) {
-    if (error.status === 0 || error.status >= 500) return 'Não foi possível acessar a API. Verifique se o backend está em execução e tente novamente.';
     const message = error.error?.message;
-    return Array.isArray(message) ? message.join(' · ') : typeof message === 'string' ? message : 'Não foi possível concluir a solicitação.';
+    if (Array.isArray(message)) return message.join(' · ');
+    if (typeof message === 'string') return message;
+    if (error.status === 0 || error.status >= 500) return 'Não foi possível acessar a API. Verifique se o backend está em execução e tente novamente.';
+    return 'Não foi possível concluir a solicitação.';
   }
   return 'A solicitação não foi concluída. Tente novamente.';
 }

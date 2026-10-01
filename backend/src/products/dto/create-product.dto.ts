@@ -1,7 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsNotEmpty, IsNumber, IsObject,
-  IsOptional, IsString, IsUrl, Matches, MaxLength, Min, ValidateNested,
+  IsOptional, IsString, IsUrl, Matches, Max, MaxLength, Min, ValidateNested,
 } from 'class-validator';
 import { InstallmentFeePayer, ProductType } from '../schemas/product.schema';
 import { IsProductImageUrl } from '../image-url.validator';
@@ -95,6 +95,18 @@ export class CreateProductDto {
   @IsOptional()
   @IsObject()
   specifications?: Record<string, unknown>;
+
+  @IsOptional() @IsInt() @Min(1) @Max(1000000)
+  weightGrams?: number;
+
+  @IsOptional() @IsNumber() @Min(1) @Max(200)
+  lengthCm?: number;
+
+  @IsOptional() @IsNumber() @Min(1) @Max(200)
+  widthCm?: number;
+
+  @IsOptional() @IsNumber() @Min(1) @Max(200)
+  heightCm?: number;
 
   @IsOptional()
   @IsObject()

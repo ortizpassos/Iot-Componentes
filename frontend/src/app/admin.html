@@ -52,6 +52,7 @@
         <button type="button" [disabled]="form.additionalImageUrls.length >= 4 || busy()" (click)="form.additionalImageUrls.push('')">Adicionar outra imagem</button>
       </section>
       <label>Preço (R$)<input name="price" type="number" [(ngModel)]="form.price" min="0" step="0.01" required></label><label>Estoque<input name="stock" type="number" [(ngModel)]="form.stock" min="0" step="1" required></label>
+      <fieldset class="wide"><legend>Dimensões para cálculo do frete (opcional)</legend><div class="form-grid"><label>Peso (g)<input name="weightGrams" type="number" [(ngModel)]="form.weightGrams" min="1" step="1" placeholder="Ex.: 250"></label><label>Comprimento (cm)<input name="lengthCm" type="number" [(ngModel)]="form.lengthCm" min="1" step="0.1" placeholder="Ex.: 15"></label><label>Largura (cm)<input name="widthCm" type="number" [(ngModel)]="form.widthCm" min="1" step="0.1" placeholder="Ex.: 10"></label><label>Altura (cm)<input name="heightCm" type="number" [(ngModel)]="form.heightCm" min="1" step="0.1" placeholder="Ex.: 5"></label></div></fieldset>
       <label>Fabricante<input name="manufacturer" [(ngModel)]="form.manufacturer"></label><label>Modelo<input name="model" [(ngModel)]="form.model"></label>
       <section class="wide"><h3>Datasheet e referências</h3>
         <label>Enviar datasheet PDF (até 10 MB)<input type="file" accept="application/pdf,.pdf" (change)="uploadDatasheet($event)"></label>

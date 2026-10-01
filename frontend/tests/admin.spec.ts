@@ -40,7 +40,6 @@ test('authorized administrator creates and edits products and confirms order sta
   await expect(page.locator('nav a[href="/adm"]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Cadastrar componente' }).click();
   await page.getByLabel('Nome', { exact: true }).fill('ESP32');
-  await page.getByLabel('SKU', { exact: true }).fill('ESP-001');
   await page.getByLabel('Descrição', { exact: true }).fill('Placa de desenvolvimento com Wi-Fi e Bluetooth.');
   await page.getByLabel('Preço (R$)').fill('89.9');
   await page.getByLabel('Estoque', { exact: true }).fill('20');
@@ -50,6 +49,7 @@ test('authorized administrator creates and edits products and confirms order sta
   expect(productBody.stock).toBe(20);
   expect(productBody.installmentFeePayer).toBe('SELLER');
   expect(productBody.description).toBe('Placa de desenvolvimento com Wi-Fi e Bluetooth.');
+  expect(productBody.sku).toBeUndefined();
   expect(productBody.price).toBe(89.9);
   expect(productBody.active).toBe(true);
   await page.getByRole('button', { name: 'Editar', exact: true }).click();

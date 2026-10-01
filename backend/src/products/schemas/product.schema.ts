@@ -61,6 +61,18 @@ export class Product {
   @Prop()
   model?: string;
 
+  @Prop({ min: 1 })
+  weightGrams?: number;
+
+  @Prop({ min: 1 })
+  lengthCm?: number;
+
+  @Prop({ min: 1 })
+  widthCm?: number;
+
+  @Prop({ min: 1 })
+  heightCm?: number;
+
   @Prop({ type: Object, default: {} })
   specifications!: Record<string, unknown>;
 
