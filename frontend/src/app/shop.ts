@@ -4,13 +4,12 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { FormsModule, NgForm } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { Api, Cart, Order, Product, Session, errorMessage } from './core';
+import { Api, Cart, Order, Product, Session, ShippingQuote, errorMessage } from './core';
+import { catchError, forkJoin, of } from 'rxjs';
 import { StoreConfig } from './store-config';
 import { ProductImage } from './product-image';
 import { CheckoutProfile, CheckoutProfileForm } from './checkout-profile';
 import { StoreBanner } from './store-banner';
-
-interface ShippingQuote { originZipCode: string; destinationZipCode: string; services: { code: string; name: string; price: number; deliveryDays: number | null; error?: string }[] }
 
 @Component({ imports: [CurrencyPipe, FormsModule, RouterLink, ProductImage, StoreBanner], template: `
   <app-store-banner />
@@ -26,22 +25,34 @@ interface ShippingQuote { originZipCode: string; destinationZipCode: string; ser
         <h3><a class="product-title" [routerLink]="['/produto', product._id]">{{ product.name }}</a></h3>
         <button class="description-toggle text-button" (click)="toggleDescription(product._id)" [attr.aria-expanded]="expanded().has(product._id)" [attr.aria-controls]="'description-' + product._id">{{ expanded().has(product._id) ? 'Mostrar menos' : 'Mostrar mais' }}<span class="sr-only"> sobre {{ product.name }}</span></button>
         <p class="product-description" [id]="'description-' + product._id" [hidden]="!expanded().has(product._id)">{{ product.description || product.model || 'Componente para seu próximo projeto.' }}</p>
-        <div class="product-bottom"><div><strong>{{ product.price | currency:'BRL' }}</strong><small class="muted">{{ product.stock }} em estoque</small></div><button class="secondary" [disabled]="!cart.canAdd(product)" (click)="add(product)" [attr.aria-label]="'Adicionar ' + product.name">Adicionar +</button></div><button class="primary full" [disabled]="product.stock < 1" (click)="buyNow(product)" [attr.aria-label]="'Comprar agora ' + product.name">Comprar agora</button></div>
+        <div class="product-bottom"><div><strong>{{ product.price | currency:'BRL' }}</strong><small class="muted">{{ product.stock }} em estoque</small>@if (shippingPrices()[product._id] !== undefined && shippingPrices()[product._id] !== null) { <small class="shipping-price">Frete desde {{ shippingPrices()[product._id] | currency:'BRL' }}</small> }</div><button class="secondary" [disabled]="!cart.canAdd(product)" (click)="add(product)" [attr.aria-label]="'Adicionar ' + product.name">Adicionar +</button></div><button class="primary full" [disabled]="product.stock < 1" (click)="buyNow(product)" [attr.aria-label]="'Comprar agora ' + product.name">Comprar agora</button></div>
     </article>
   } @empty { <p class="empty">Nenhum produto encontrado. Tente outra busca ou aguarde novos componentes.</p> }</div> }
-`, styles: `.product-title{padding:0;border:0;border-radius:0;background:transparent;text-align:left;font:inherit;color:inherit;overflow-wrap:anywhere}.description-toggle{padding:4px 0;text-decoration:underline}.product-description{white-space:pre-wrap;overflow-wrap:anywhere}.product-grid{align-items:start}` })
+`, styles: `.product-title{padding:0;border:0;border-radius:0;background:transparent;text-align:left;font:inherit;color:inherit;overflow-wrap:anywhere}.description-toggle{padding:4px 0;text-decoration:underline}.product-description{white-space:pre-wrap;overflow-wrap:anywhere}.product-grid{align-items:start}.shipping-price{color:var(--primary);font-weight:600}` })
 export class CatalogPage {
   private categoryParams = toSignal(inject(ActivatedRoute).queryParamMap);
   expanded = signal<Set<string>>(new Set());
   toggleDescription(id: string) { this.expanded.update(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }
   store = inject(StoreConfig);
-  private api = inject(Api); cart = inject(Cart); private router = inject(Router);
-  products = signal<Product[]>([]); loading = signal(true); error = signal(''); message = signal(''); query = computed(() => this.categoryParams()?.get('busca') || ''); filter = computed(() => { const value = this.categoryParams()?.get('categoria') || ''; return CATALOG_CATEGORIES.some(type => type.value === value) ? value : ''; });
+  private api = inject(Api); cart = inject(Cart); session = inject(Session); private router = inject(Router);
+  products = signal<Product[]>([]); shippingPrices = signal<Record<string, number | null>>({}); loading = signal(true); error = signal(''); message = signal(''); query = computed(() => this.categoryParams()?.get('busca') || ''); filter = computed(() => { const value = this.categoryParams()?.get('categoria') || ''; return CATALOG_CATEGORIES.some(type => type.value === value) ? value : ''; });
   types = CATALOG_CATEGORIES;
   filtered = computed(() => this.products().filter(p => (!this.filter() || p.type === this.filter()) && `${p.name} ${p.sku} ${p.model || ''} ${p.manufacturer || ''}`.toLocaleLowerCase().includes(this.query().toLocaleLowerCase())));
   constructor() { this.load(); }
   label(type: string) { return this.types.find(t => t.value === type)?.label || type; }
-  load() { this.loading.set(true); this.error.set(''); this.api.get<Product[]>('products').subscribe({ next: data => { this.products.set(data); this.loading.set(false); }, error: e => { this.error.set(errorMessage(e)); this.loading.set(false); } }); }
+  load() { this.loading.set(true); this.error.set(''); this.api.get<Product[]>('products').subscribe({ next: data => { this.products.set(data); this.loading.set(false); this.loadCatalogShipping(data); }, error: e => { this.error.set(errorMessage(e)); this.loading.set(false); } }); }
+  private loadCatalogShipping(products: Product[]) {
+    if (!this.session.token()) return;
+    this.api.get<{ profile: CheckoutProfile | null }>('users/me/checkout-profile').subscribe({ next: data => {
+      const zipCode = data.profile?.address.zipCode.replace(/\D/g, '');
+      if (!zipCode) return;
+      forkJoin(products.map(product => this.api.post<ShippingQuote>('shipping/quote', { destinationZipCode: zipCode, items: [{ productId: product._id, quantity: 1 }] }).pipe(catchError(() => of(null))))).subscribe(results => {
+        const prices: Record<string, number | null> = {};
+        products.forEach((product, index) => { const services = results[index]?.services || []; prices[product._id] = services.length ? Math.min(...services.map(service => service.price)) : null; });
+        this.shippingPrices.set(prices);
+      });
+    }, error: () => undefined });
+  }
   buyNow(product: Product) { if (product.stock < 1) return; void this.router.navigate(['/finalizar-compra', product._id]); }
   add(product: Product) { if (!this.cart.add(product)) return; this.message.set(`${product.name} adicionado ao carrinho.`); }
 }

@@ -17,8 +17,8 @@ export class ShippingQuoteDto {
   @ValidateNested({ each: true }) @Type(() => ShippingQuoteItemDto) items!: ShippingQuoteItemDto[];
 }
 
-interface MelhorEnvioQuote { id: string | number; name: string; price?: string | number; custom_price?: string | number; delivery_time?: number; delivery_range?: { min?: number; max?: number } }
-interface MelhorEnvioServiceQuote { code: string; name: string; price: number; deliveryDays: number | null }
+interface SuperFreteQuote { id: string | number; name: string; price?: string | number; delivery_time?: number; delivery_range?: { min?: number; max?: number }; has_error?: boolean }
+interface SuperFreteServiceQuote { code: string; name: string; price: number; deliveryDays: number | null }
 
 @Injectable()
 export class ShippingService {
@@ -37,41 +37,38 @@ export class ShippingService {
     const products = await this.products.find({ _id: { $in: dto.items.map(item => item.productId) }, active: true }).lean();
     if (products.length !== dto.items.length) throw new BadRequestException('Um dos produtos não está disponível para frete.');
     const byId = new Map(products.map(product => [String(product._id), product]));
-    let weightGrams = 0; let height = 0; let length = 0; let width = 0;
+    const productsForQuote: { quantity: number; height: number; length: number; width: number; weight: number }[] = [];
     for (const item of dto.items) {
       if (!Types.ObjectId.isValid(item.productId)) throw new BadRequestException('Produto inválido para cálculo do frete.');
       const product = byId.get(item.productId);
       if (!product || !product.weightGrams || !product.lengthCm || !product.widthCm || !product.heightCm) {
         throw new BadRequestException(`Cadastre peso e dimensões de ${product?.name || 'cada produto'} antes de calcular o frete.`);
       }
-      weightGrams += product.weightGrams * item.quantity;
-      height += product.heightCm * item.quantity;
-      length = Math.max(length, product.lengthCm);
-      width = Math.max(width, product.widthCm);
+      productsForQuote.push({ quantity: item.quantity, height: product.heightCm, length: product.lengthCm, width: product.widthCm, weight: product.weightGrams / 1000 });
     }
-    const token = this.config.get<string>('MELHOR_ENVIO_TOKEN')?.trim();
-    if (!token) throw new ServiceUnavailableException('Configure MELHOR_ENVIO_TOKEN para consultar o frete.');
-    const baseUrl = this.config.get<string>('MELHOR_ENVIO_BASE_URL')?.trim() || 'https://melhorenvio.com.br';
+    const token = this.config.get<string>('SUPERFRETE_TOKEN')?.trim();
+    if (!token) throw new ServiceUnavailableException('Configure SUPERFRETE_TOKEN para consultar o frete.');
+    const baseUrl = this.config.get<string>('SUPERFRETE_BASE_URL')?.trim() || 'https://api.superfrete.com';
     let response: Response;
     try {
-      response = await fetch(`${baseUrl}/api/v2/me/shipment/calculate`, {
+      response = await fetch(`${baseUrl}/api/v0/calculator`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': this.config.get<string>('MELHOR_ENVIO_USER_AGENT') || 'IoT Componentes (suporte@iot-componentes.com.br)' },
-        body: JSON.stringify({ from: { postal_code: origin }, to: { postal_code: dto.destinationZipCode }, products: [{ id: 'catalogo', width: Math.max(11, width), height: Math.max(2, height), length: Math.max(16, length), weight: Math.max(0.3, weightGrams / 1000), insurance_value: 0, quantity: 1 }] }),
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': this.config.get<string>('SUPERFRETE_USER_AGENT') || 'IoT Componentes (suporte@iot-componentes.com.br)' },
+        body: JSON.stringify({ from: { postal_code: origin }, to: { postal_code: dto.destinationZipCode }, services: '1,2', options: { own_hand: false, receipt: false, insurance_value: 0, use_insurance_value: false }, products: productsForQuote }),
         signal: AbortSignal.timeout(10000),
       });
-    } catch { throw new BadGatewayException('Não foi possível consultar o Melhor Envio.'); }
-    if (response.status === 401 || response.status === 403) throw new ServiceUnavailableException('O token do Melhor Envio é inválido ou expirou.');
-    if (!response.ok) throw new BadGatewayException('O Melhor Envio não respondeu ao cálculo do frete.');
-    const data = await response.json() as MelhorEnvioQuote[];
-    const services = data.map(service => this.parseService(service)).filter((service): service is MelhorEnvioServiceQuote => !!service);
-    if (!services.length) throw new BadGatewayException('O Melhor Envio não retornou modalidades para este CEP.');
+    } catch { throw new BadGatewayException('Não foi possível consultar a SuperFrete.'); }
+    if (response.status === 401 || response.status === 403) throw new ServiceUnavailableException('O token da SuperFrete é inválido ou expirou.');
+    if (!response.ok) throw new BadGatewayException('A SuperFrete não respondeu ao cálculo do frete.');
+    const data = await response.json() as SuperFreteQuote[];
+    const services = data.map(service => this.parseService(service)).filter((service): service is SuperFreteServiceQuote => !!service);
+    if (!services.length) throw new BadGatewayException('A SuperFrete não retornou modalidades para este CEP.');
     return { originZipCode: origin, destinationZipCode: dto.destinationZipCode, services };
   }
 
-  private parseService(service: MelhorEnvioQuote): MelhorEnvioServiceQuote | null {
-    const price = Number(service.custom_price ?? service.price);
-    if (!Number.isFinite(price)) return null;
+  private parseService(service: SuperFreteQuote): SuperFreteServiceQuote | null {
+    const price = Number(service.price);
+    if (service.has_error || !Number.isFinite(price)) return null;
     return { code: String(service.id), name: service.name, price, deliveryDays: service.delivery_time || service.delivery_range?.max || null };
   }
 }

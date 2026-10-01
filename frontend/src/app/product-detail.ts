@@ -1,12 +1,13 @@
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { CurrencyPipe, JsonPipe, KeyValuePipe } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Api, Cart, Product, errorMessage } from './core';
+import { Api, Cart, Product, ShippingQuote, errorMessage } from './core';
 import { ProductImage } from './product-image';
 
 @Component({
-  imports: [CurrencyPipe, RouterLink, ProductImage, KeyValuePipe, JsonPipe],
+  imports: [CurrencyPipe, FormsModule, RouterLink, ProductImage, KeyValuePipe, JsonPipe],
   template: `
     <a class="back-link" routerLink="/catalogo">← Voltar ao catálogo</a>
     @if (loading()) { <p role="status">Carregando produto…</p> }
@@ -30,6 +31,7 @@ import { ProductImage } from './product-image';
           @if (item.programming?.supported) { <p>Suporta programação</p> }
           @if (item.programming?.platform) { <p><strong>Plataforma:</strong> {{ item.programming?.platform }}</p> }
           @if (item.programming?.chip) { <p><strong>Chip:</strong> {{ item.programming?.chip }}</p> }
+          <div class="shipping-panel"><label>CEP de entrega<input name="shippingZipCode" inputmode="numeric" maxlength="9" placeholder="00000-000" [(ngModel)]="shippingZipCode"></label><button type="button" class="text-button" [disabled]="shippingBusy()" (click)="calculateShipping()">{{ shippingBusy() ? 'Calculando…' : 'Calcular frete' }}</button>@if (shippingError()) { <p class="error" role="alert">{{ shippingError() }}</p> } @if (shippingQuote(); as quote) { @for (service of quote.services; track service.code) { <div class="shipping-line"><span>{{ service.name }}{{ service.deliveryDays ? ' · até ' + service.deliveryDays + ' dias úteis' : '' }}</span><strong>{{ service.price | currency:'BRL' }}</strong></div> } }</div>
           <div class="actions"><button class="secondary" [disabled]="!cart.canAdd(item)" (click)="add(item)">Adicionar +</button><button class="primary" [disabled]="item.stock < 1" (click)="buy(item)">Comprar agora</button></div>
           @if (message()) { <p class="notice" role="status">{{ message() }}</p> }
         </section>
@@ -46,13 +48,13 @@ import { ProductImage } from './product-image';
       }
     }
   `,
-  styles: `.product-detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}.main-image{height:380px}.thumbnails{display:flex;gap:8px;margin-top:16px}.thumbnails button{width:calc((100% - 32px)/5);height:70px;padding:0}.thumbnails .selected{border:2px solid var(--primary)}.price{font-size:30px;font-weight:700}.actions{display:flex;flex-wrap:wrap;gap:12px}.description{margin-top:24px}.description p,dd{white-space:pre-wrap;overflow-wrap:anywhere}dt{font-weight:700}dd{margin:4px 0 16px}h1{overflow-wrap:anywhere}@media(max-width:800px){.product-detail{grid-template-columns:minmax(0,1fr)}.main-image{height:280px}}`,
+  styles: `.product-detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}.main-image{height:380px}.thumbnails{display:flex;gap:8px;margin-top:16px}.thumbnails button{width:calc((100% - 32px)/5);height:70px;padding:0}.thumbnails .selected{border:2px solid var(--primary)}.price{font-size:30px;font-weight:700}.actions{display:flex;flex-wrap:wrap;gap:12px}.shipping-panel{margin:20px 0;padding-top:16px;border-top:1px solid var(--border)}.shipping-panel label{display:block}.shipping-panel input{display:block;width:100%;margin-top:6px}.shipping-line{display:flex;justify-content:space-between;gap:12px;margin-top:8px}.description{margin-top:24px}.description p,dd{white-space:pre-wrap;overflow-wrap:anywhere}dt{font-weight:700}dd{margin:4px 0 16px}h1{overflow-wrap:anywhere}@media(max-width:800px){.product-detail{grid-template-columns:minmax(0,1fr)}.main-image{height:280px}}`,
 })
 export class ProductDetailPage {
   private api = inject(Api); cart = inject(Cart); private router = inject(Router);
   private route = inject(ActivatedRoute); private destroy = inject(DestroyRef);
   product = signal<Product | null>(null); images = signal<string[]>([]); selected = signal(0);
-  loading = signal(true); error = signal(''); message = signal(''); private requestId = 0;
+  loading = signal(true); error = signal(''); message = signal(''); shippingZipCode = ''; shippingBusy = signal(false); shippingError = signal(''); shippingQuote = signal<ShippingQuote | null>(null); private requestId = 0;
   constructor() { this.route.paramMap.pipe(takeUntilDestroyed(this.destroy)).subscribe(() => this.load()); }
   load() {
     const request = ++this.requestId;
@@ -61,11 +63,18 @@ export class ProductDetailPage {
       next: item => {
         if (request !== this.requestId) return;
         if (item.active === false) this.error.set('Produto indisponível.');
-        else { this.product.set(item); this.images.set([item.imageUrl || '', ...(item.additionalImageUrls || [])].filter(Boolean).slice(0, 5)); }
+        else { this.product.set(item); this.images.set([item.imageUrl || '', ...(item.additionalImageUrls || [])].filter(Boolean).slice(0, 5)); this.loadShippingProfile(); }
         this.loading.set(false);
       },
       error: e => { if (request === this.requestId) { this.error.set(e.status === 404 ? 'Produto não encontrado.' : errorMessage(e)); this.loading.set(false); } },
     });
+  }
+  private loadShippingProfile() { this.api.get<{ profile: { address: { zipCode: string } } | null }>('users/me/checkout-profile').subscribe({ next: data => { if (data.profile?.address.zipCode) { this.shippingZipCode = data.profile.address.zipCode; this.calculateShipping(); } }, error: () => undefined }); }
+  calculateShipping() {
+    const zipCode = this.shippingZipCode.replace(/\D/g, '');
+    if (!/^\d{8}$/.test(zipCode) || !this.product()) { this.shippingError.set('Informe um CEP válido com 8 números.'); return; }
+    this.shippingBusy.set(true); this.shippingError.set('');
+    this.api.post<ShippingQuote>('shipping/quote', { destinationZipCode: zipCode, items: [{ productId: this.product()!._id, quantity: 1 }] }).subscribe({ next: quote => { this.shippingQuote.set(quote); this.shippingBusy.set(false); }, error: e => { this.shippingError.set(errorMessage(e)); this.shippingBusy.set(false); } });
   }
   isObject(value: unknown) { return value !== null && typeof value === 'object'; }
   typeLabel(type: string) { return ({ BOARD: 'Placa', SENSOR: 'Sensor', MODULE: 'Módulo', KIT: 'Kit', ACCESSORY: 'Acessório', SERVICE: 'Serviço' } as Record<string, string>)[type] || type; }

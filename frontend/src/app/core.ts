@@ -19,6 +19,7 @@ export interface Order { trackingCode?: string; labelIssuedAt?: string; _id: str
 export interface Device { _id: string; name: string; board: string; model?: string; online: boolean }
 export interface Project { _id: string; name: string; description?: string; status: string; device?: Device }
 export interface CartLine { product: Product; quantity: number; type: Programming['type']; requirements: string }
+export interface ShippingQuote { originZipCode: string; destinationZipCode: string; services: { code: string; name: string; price: number; deliveryDays: number | null; error?: string }[] }
 
 @Injectable({ providedIn: 'root' })
 export class Session {
