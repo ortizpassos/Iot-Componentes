@@ -63,13 +63,13 @@ export class CatalogPage {
       }
     </section> }
     </div><section class="panel summary"><h2>Resumo do pedido</h2><div class="row"><span>Produtos (estimativa)</span><strong>{{ total() | currency:'BRL' }}</strong></div>
-      @if (profileReady()) { <div class="shipping-quote"><div class="row"><h3>Frete</h3><button type="button" class="text-button" [disabled]="shippingBusy()" (click)="recalculateShipping()">{{ shippingBusy() ? 'Consultando…' : 'Recalcular' }}</button></div>@if (shippingError()) { <p class="error" role="alert">{{ shippingError() }}</p> } @if (shippingQuote(); as quote) { @for (service of quote.services; track service.code) { <div class="row"><span>{{ service.name }}{{ service.deliveryDays ? ' · até ' + service.deliveryDays + ' dias úteis' : '' }}</span><strong>{{ service.price | currency:'BRL' }}</strong></div> } } @else if (!shippingBusy() && !shippingError()) { <p class="muted">Informe o CEP para consultar as modalidades de envio.</p> }</div> }
-      <p class="muted">O valor dos produtos será calculado com os preços atuais do catálogo ao registrar o pedido.</p><p class="notice">{{ hasProgramming() ? 'A programação será analisada separadamente. Este pedido ficará pendente de atendimento.' : 'Após registrar o pedido, escolha Pix ou cartão na página de pagamento.' }}</p><button class="primary full" [disabled]="busy() || form.invalid">{{ busy() ? 'Registrando…' : session.token() ? (directPurchase && !hasProgramming() ? 'Ir para pagamento →' : 'Registrar pedido →') : 'Entrar para continuar →' }}</button><a class="back-link" routerLink="/catalogo">Continuar explorando</a></section>
+      @if (profileReady()) { <div class="shipping-quote"><div class="row"><h3>Frete</h3><button type="button" class="text-button" [disabled]="shippingBusy()" (click)="recalculateShipping()">{{ shippingBusy() ? 'Consultando…' : 'Recalcular' }}</button></div>@if (shippingError()) { <p class="error" role="alert">{{ shippingError() }}</p> } @if (shippingQuote(); as quote) { @for (service of quote.services; track service.code) { <label class="shipping-option"><span><input type="radio" name="shippingService" [checked]="selectedShippingCode() === service.code" (change)="selectShipping(service.code)"> {{ service.name }}{{ service.deliveryDays ? ' · até ' + service.deliveryDays + ' dias úteis' : '' }}</span><strong>{{ service.price | currency:'BRL' }}</strong></label> } } @else if (!shippingBusy() && !shippingError()) { <p class="muted">Informe o CEP para consultar as modalidades de envio.</p> }</div> }
+      @if (shippingPrice() !== null) { <div class="row"><span>Frete selecionado</span><strong>{{ shippingPrice() | currency:'BRL' }}</strong></div> }<div class="row total"><span>Total estimado</span><strong>{{ grandTotal() | currency:'BRL' }}</strong></div><p class="muted">O frete exibido é uma estimativa da modalidade selecionada.</p><p class="notice">{{ hasProgramming() ? 'A programação será analisada separadamente. Este pedido ficará pendente de atendimento.' : 'Após registrar o pedido, escolha Pix ou cartão na página de pagamento.' }}</p><button class="primary full" [disabled]="busy() || form.invalid">{{ busy() ? 'Registrando…' : session.token() ? (directPurchase && !hasProgramming() ? 'Ir para pagamento →' : 'Registrar pedido →') : 'Entrar para continuar →' }}</button><a class="back-link" routerLink="/catalogo">Continuar explorando</a></section>
   </form> }
-`, styles: `.shipping-quote{margin:20px 0}.shipping-quote h3{margin:0}.shipping-quote .row{margin:8px 0}` })
+`, styles: `.shipping-quote{margin:20px 0}.shipping-quote h3{margin:0}.shipping-quote .row{margin:8px 0}.shipping-option{display:flex;justify-content:space-between;gap:12px;margin:8px 0}.shipping-option input{width:auto}` })
 export class CartPage {
   profileReady = signal(false);
-  shippingBusy = signal(false); shippingError = signal(''); shippingQuote = signal<ShippingQuote | null>(null); private shippingZipCode = '';
+  shippingBusy = signal(false); shippingError = signal(''); shippingQuote = signal<ShippingQuote | null>(null); selectedShippingCode = signal(''); private shippingZipCode = '';
   private route = inject(ActivatedRoute);
   directPurchase = this.route.snapshot.paramMap.has('productId');
   cart = this.directPurchase ? new Cart() : inject(Cart);
@@ -89,9 +89,12 @@ export class CartPage {
     }
   }
   total() { return this.cart.lines().reduce((sum, l) => sum + Math.round(l.product.price * 100) * (l.quantity || 0), 0) / 100; }
+  shippingPrice() { const quote = this.shippingQuote(); const selected = quote?.services.find(service => service.code === this.selectedShippingCode()) || quote?.services.slice().sort((a, b) => a.price - b.price)[0]; return selected?.price ?? null; }
+  grandTotal() { return this.total() + (this.shippingPrice() || 0); }
   hasProgramming() { return this.cart.lines().some(line => line.type !== 'NONE'); }
+  selectShipping(code: string) { this.selectedShippingCode.set(code); }
   onProfileReady(profile: CheckoutProfile | null) {
-    this.profileReady.set(!!profile); this.shippingQuote.set(null); this.shippingError.set('');
+    this.profileReady.set(!!profile); this.shippingQuote.set(null); this.selectedShippingCode.set(''); this.shippingError.set('');
     if (profile) { this.shippingZipCode = profile.address.zipCode.replace(/\D/g, ''); this.calculateShipping(); }
   }
   recalculateShipping() { if (!this.shippingBusy()) this.calculateShipping(); }
@@ -99,7 +102,7 @@ export class CartPage {
     if (!this.shippingZipCode || !this.cart.lines().length) return;
     this.shippingBusy.set(true); this.shippingError.set('');
     this.api.post<ShippingQuote>('shipping/quote', { destinationZipCode: this.shippingZipCode, items: this.cart.lines().map(line => ({ productId: line.product._id, quantity: line.quantity })) }).subscribe({
-      next: quote => { this.shippingQuote.set(quote); this.shippingBusy.set(false); },
+      next: quote => { this.shippingQuote.set(quote); this.selectedShippingCode.set(quote.services.slice().sort((a, b) => a.price - b.price)[0]?.code || ''); this.shippingBusy.set(false); },
       error: error => { this.shippingError.set(errorMessage(error)); this.shippingBusy.set(false); },
     });
   }
@@ -109,7 +112,8 @@ export class CartPage {
     if (!this.profileReady()) { this.error.set('Preencha e salve os dados de entrega antes de registrar o pedido.'); return; }
     if (this.cart.lines().some(l => (!Number.isInteger(l.quantity) || l.quantity < 1 || l.quantity > l.product.stock) || ((l.type === 'AI' || l.type === 'CUSTOM') && !l.requirements.trim()))) { this.error.set('Use quantidades inteiras e preencha os requisitos de programação.'); return; }
     this.busy.set(true); this.error.set('');
+    if (!this.shippingPrice() || !this.selectedShippingCode()) { this.error.set('Calcule e selecione uma modalidade de frete antes de registrar o pedido.'); this.busy.set(false); return; }
     const items = this.cart.lines().map(l => ({ productId: l.product._id, quantity: l.quantity, programmingRequest: { requested: l.type !== 'NONE', type: l.type, ...(l.type !== 'NONE' && l.requirements.trim() ? { requirements: l.requirements.trim() } : {}) } }));
-    this.api.post<Order>('orders', { items }).subscribe({ next: order => { this.cart.clear(); void this.router.navigate([order.items.every(item => !item.programmingRequest.requested && item.programmingRequest.type === 'NONE') ? '/pagamento' : '/pedidos', order._id]); }, error: e => { this.error.set(errorMessage(e)); this.busy.set(false); } });
+    this.api.post<Order>('orders', { items, shippingServiceId: this.selectedShippingCode() }).subscribe({ next: order => { this.cart.clear(); void this.router.navigate([order.items.every(item => !item.programmingRequest.requested && item.programmingRequest.type === 'NONE') ? '/pagamento' : '/pedidos', order._id]); }, error: e => { this.error.set(errorMessage(e)); this.busy.set(false); } });
   }
 }

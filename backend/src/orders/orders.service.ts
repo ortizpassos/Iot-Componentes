@@ -6,6 +6,7 @@ import { InstallmentFeePayer } from '../products/schemas/product.schema';
 import { UsersService } from '../users/users.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Order, OrderDocument, OrderItem, OrderStatus, ProgrammingType } from './schemas/order.schema';
+import { ShippingService } from '../shipping/shipping.module';
 
 @Injectable()
 export class OrdersService {
@@ -13,6 +14,7 @@ export class OrdersService {
     @InjectModel(Order.name) private readonly orderModel: Model<OrderDocument>,
     private readonly productsService: ProductsService,
     private readonly usersService: UsersService,
+    private readonly shippingService: ShippingService,
   ) {}
 
   async create(customerId: string, dto: CreateOrderDto) {
@@ -63,11 +65,26 @@ export class OrdersService {
       });
     }
 
+    let shipping: { serviceId: string; name: string; price: number; deliveryDays: number | null } | undefined;
+    if (dto.shippingServiceId) {
+      const quote = await this.shippingService.quote({
+        destinationZipCode: checkoutProfile.address.zipCode,
+        items: dto.items.map(item => ({ productId: item.productId, quantity: item.quantity })),
+      });
+      const selected = quote.services.find(service => service.code === dto.shippingServiceId);
+      if (!selected) throw new BadRequestException('A modalidade de frete selecionada não está disponível. Calcule novamente.');
+      shipping = { serviceId: selected.code, name: selected.name, price: selected.price, deliveryDays: selected.deliveryDays };
+      const shippingCents = Math.round((selected.price + Number.EPSILON) * 100);
+      totalCents += shippingCents;
+      if (!Number.isSafeInteger(shippingCents) || !Number.isSafeInteger(totalCents)) throw new BadRequestException('Valor do frete fora do limite suportado.');
+    }
+
     return this.orderModel.create({
       customer: new Types.ObjectId(customerId),
       checkoutProfile,
       status: OrderStatus.PENDING,
       items,
+      ...(shipping ? { shipping } : {}),
       total: totalCents / 100,
     });
   }

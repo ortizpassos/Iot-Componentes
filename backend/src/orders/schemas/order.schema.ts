@@ -64,6 +64,15 @@ export class OrderItem {
 }
 const OrderItemSchema = SchemaFactory.createForClass(OrderItem);
 
+@Schema({ _id: false })
+export class OrderShipping {
+  @Prop({ required: true }) serviceId!: string;
+  @Prop({ required: true }) name!: string;
+  @Prop({ required: true, min: 0 }) price!: number;
+  @Prop({ min: 0 }) deliveryDays?: number;
+}
+const OrderShippingSchema = SchemaFactory.createForClass(OrderShipping);
+
 @Schema({ timestamps: true })
 export class Order {
   @Prop({ type: Date })
@@ -98,6 +107,9 @@ export class Order {
 
   @Prop({ required: true, min: 0 })
   total!: number;
+
+  @Prop({ type: OrderShippingSchema })
+  shipping?: OrderShipping;
 
   @Prop({ type: [OrderItemSchema], required: true })
   items!: OrderItem[];

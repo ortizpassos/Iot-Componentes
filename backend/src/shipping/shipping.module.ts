@@ -91,5 +91,6 @@ export class ShippingController {
   imports: [SettingsModule, MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema }])],
   controllers: [ShippingController],
   providers: [ShippingService],
+  exports: [ShippingService],
 })
 export class ShippingModule {}

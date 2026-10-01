@@ -5,9 +5,10 @@ import { ProductsModule } from '../products/products.module';
 import { Order, OrderSchema } from './schemas/order.schema';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
+import { ShippingModule } from '../shipping/shipping.module';
 
 @Module({
-  imports: [UsersModule, ProductsModule, MongooseModule.forFeature([{ name: Order.name, schema: OrderSchema }])],
+  imports: [UsersModule, ProductsModule, ShippingModule, MongooseModule.forFeature([{ name: Order.name, schema: OrderSchema }])],
   controllers: [OrdersController],
   providers: [OrdersService],
   exports: [OrdersService],

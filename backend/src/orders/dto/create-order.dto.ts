@@ -35,6 +35,10 @@ export class CreateOrderItemDto {
 }
 
 export class CreateOrderDto {
+  @IsOptional()
+  @IsString()
+  shippingServiceId?: string;
+
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(100)
