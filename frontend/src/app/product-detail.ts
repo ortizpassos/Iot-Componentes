@@ -31,7 +31,7 @@ import { ProductImage } from './product-image';
           @if (item.programming?.supported) { <p>Suporta programação</p> }
           @if (item.programming?.platform) { <p><strong>Plataforma:</strong> {{ item.programming?.platform }}</p> }
           @if (item.programming?.chip) { <p><strong>Chip:</strong> {{ item.programming?.chip }}</p> }
-          <div class="shipping-panel"><label>CEP de entrega<input name="shippingZipCode" inputmode="numeric" maxlength="9" placeholder="00000-000" [(ngModel)]="shippingZipCode"></label><button type="button" class="text-button" [disabled]="shippingBusy()" (click)="calculateShipping()">{{ shippingBusy() ? 'Calculando…' : 'Calcular frete' }}</button>@if (shippingError()) { <p class="error" role="alert">{{ shippingError() }}</p> } @if (shippingQuote(); as quote) { @for (service of quote.services; track service.code) { <div class="shipping-line"><span>{{ service.name }}{{ service.deliveryDays ? ' · até ' + service.deliveryDays + ' dias úteis' : '' }}</span><strong>{{ service.price | currency:'BRL' }}</strong></div> } }</div>
+          <div class="shipping-panel"><label>CEP de entrega<input name="shippingZipCode" inputmode="numeric" maxlength="9" placeholder="00000-000" [(ngModel)]="shippingZipCode" (ngModelChange)="onShippingZipCodeChange()"></label>@if (shippingBusy()) { <p class="muted" role="status">Calculando frete…</p> } @if (shippingError()) { <p class="error" role="alert">{{ shippingError() }}</p> } @if (shippingQuote(); as quote) { @for (service of quote.services; track service.code) { <div class="shipping-line"><span>{{ service.name }}{{ service.deliveryDays ? ' · até ' + service.deliveryDays + ' dias úteis' : '' }}</span><strong>{{ service.price | currency:'BRL' }}</strong></div> } }</div>
           <div class="actions"><button class="secondary" [disabled]="!cart.canAdd(item)" (click)="add(item)">Adicionar +</button><button class="primary" [disabled]="item.stock < 1" (click)="buy(item)">Comprar agora</button></div>
           @if (message()) { <p class="notice" role="status">{{ message() }}</p> }
         </section>
@@ -54,7 +54,7 @@ export class ProductDetailPage {
   private api = inject(Api); cart = inject(Cart); private router = inject(Router);
   private route = inject(ActivatedRoute); private destroy = inject(DestroyRef);
   product = signal<Product | null>(null); images = signal<string[]>([]); selected = signal(0);
-  loading = signal(true); error = signal(''); message = signal(''); shippingZipCode = ''; shippingBusy = signal(false); shippingError = signal(''); shippingQuote = signal<ShippingQuote | null>(null); private requestId = 0;
+  loading = signal(true); error = signal(''); message = signal(''); shippingZipCode = ''; shippingBusy = signal(false); shippingError = signal(''); shippingQuote = signal<ShippingQuote | null>(null); private lastShippingZipCode = ''; private requestId = 0;
   constructor() { this.route.paramMap.pipe(takeUntilDestroyed(this.destroy)).subscribe(() => this.load()); }
   load() {
     const request = ++this.requestId;
@@ -70,9 +70,16 @@ export class ProductDetailPage {
     });
   }
   private loadShippingProfile() { this.api.get<{ profile: { address: { zipCode: string } } | null }>('users/me/checkout-profile').subscribe({ next: data => { if (data.profile?.address.zipCode) { this.shippingZipCode = data.profile.address.zipCode; this.calculateShipping(); } }, error: () => undefined }); }
+  onShippingZipCodeChange() {
+    const zipCode = this.shippingZipCode.replace(/\D/g, '');
+    this.shippingError.set('');
+    if (zipCode.length < 8) { this.shippingQuote.set(null); this.lastShippingZipCode = ''; return; }
+    if (zipCode.length === 8 && zipCode !== this.lastShippingZipCode) this.calculateShipping();
+  }
   calculateShipping() {
     const zipCode = this.shippingZipCode.replace(/\D/g, '');
     if (!/^\d{8}$/.test(zipCode) || !this.product()) { this.shippingError.set('Informe um CEP válido com 8 números.'); return; }
+    this.lastShippingZipCode = zipCode;
     this.shippingBusy.set(true); this.shippingError.set('');
     this.api.post<ShippingQuote>('shipping/quote', { destinationZipCode: zipCode, items: [{ productId: this.product()!._id, quantity: 1 }] }).subscribe({ next: quote => { this.shippingQuote.set(quote); this.shippingBusy.set(false); }, error: e => { this.shippingError.set(errorMessage(e)); this.shippingBusy.set(false); } });
   }

@@ -1,4 +1,5 @@
 import { Component, DestroyRef, inject, output, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { FormsModule, NgForm } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Api, errorMessage } from './core';
@@ -24,7 +25,7 @@ export interface CheckoutProfile {
             <label>Nome completo<input name="fullName" autocomplete="name" [(ngModel)]="profile.fullName" required maxlength="150" pattern="\\S+\\s+\\S.*"></label>
             <label>CPF<input name="cpf" inputmode="numeric" [(ngModel)]="profile.cpf" required maxlength="14" placeholder="000.000.000-00"></label>
             <div class="address-grid">
-              <label>CEP<input name="zipCode" autocomplete="postal-code" inputmode="numeric" [(ngModel)]="profile.address.zipCode" required maxlength="9" placeholder="00000-000"></label>
+              <label>CEP<input name="zipCode" autocomplete="postal-code" inputmode="numeric" [(ngModel)]="profile.address.zipCode" (ngModelChange)="zipCodeChanged()" required maxlength="9" placeholder="00000-000">@if (zipLoading()) { <small class="muted">Buscando endereço…</small> } @if (zipError()) { <small class="error">{{ zipError() }}</small> }</label>
               <label>Rua / Avenida<input name="street" autocomplete="address-line1" [(ngModel)]="profile.address.street" required maxlength="150"></label>
               <label>Número<input name="number" [(ngModel)]="profile.address.number" required maxlength="20" placeholder="Número ou S/N"></label>
               <label>Complemento (opcional)<input name="complement" autocomplete="address-line2" [(ngModel)]="profile.address.complement" maxlength="100"></label>
@@ -38,11 +39,11 @@ export interface CheckoutProfile {
       }
     }
   </section>
-`, styles: `.delivery{margin:24px 0}.address-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:0 16px}fieldset{border:0;padding:0;margin:0;min-width:0}` })
+`, styles: `.delivery{margin:24px 0}.address-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:0 16px}fieldset{border:0;padding:0;margin:0;min-width:0}label small{display:block;margin-top:4px}` })
 export class CheckoutProfileForm {
-  private api = inject(Api); private destroy = inject(DestroyRef);
+  private api = inject(Api); private http = inject(HttpClient); private destroy = inject(DestroyRef);
   ready = output<CheckoutProfile | null>();
-  loading = signal(true); loaded = signal(false); editing = signal(true); busy = signal(false); error = signal('');
+  loading = signal(true); loaded = signal(false); editing = signal(true); busy = signal(false); error = signal(''); zipLoading = signal(false); zipError = signal(''); private zipRequest = 0;
   states = 'AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' ');
   profile: CheckoutProfile = { fullName: '', cpf: '', address: { zipCode: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '' } };
   constructor() { this.load(); }
@@ -54,6 +55,22 @@ export class CheckoutProfileForm {
     });
   }
   edit() { this.editing.set(true); this.ready.emit(null); }
+  zipCodeChanged() {
+    const zipCode = this.profile.address.zipCode.replace(/\D/g, '');
+    this.zipError.set('');
+    if (zipCode.length !== 8) return;
+    const request = ++this.zipRequest;
+    this.zipLoading.set(true);
+    this.http.get<{ cep?: string; logradouro?: string; bairro?: string; localidade?: string; uf?: string; erro?: boolean }>(`https://viacep.com.br/ws/${zipCode}/json/`).pipe(takeUntilDestroyed(this.destroy)).subscribe({
+      next: data => {
+        if (request !== this.zipRequest) return;
+        this.zipLoading.set(false);
+        if (data.erro) { this.zipError.set('CEP não encontrado.'); return; }
+        this.profile.address = { ...this.profile.address, zipCode: data.cep || this.profile.address.zipCode, street: data.logradouro || this.profile.address.street, neighborhood: data.bairro || this.profile.address.neighborhood, city: data.localidade || this.profile.address.city, state: data.uf || this.profile.address.state };
+      },
+      error: () => { if (request === this.zipRequest) { this.zipLoading.set(false); this.zipError.set('Não foi possível consultar o CEP.'); } },
+    });
+  }
   save(form: NgForm) {
     if (form.invalid || this.busy()) return;
     this.busy.set(true); this.error.set('');
