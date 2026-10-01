@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 const id = '507f1f77bcf86cd799439012';
 
 test('admin is not linked publicly and requires explicit server permission', async ({ page }) => {
+  await page.route('**/api/cart', route => route.fulfill({ json: { lines: [] } }));
   await page.route('**/api/products', route => route.fulfill({ json: [] }));
   await page.goto('/catalogo');
   await expect(page.locator('a[href="/adm"]')).toHaveCount(0);
@@ -26,10 +27,11 @@ test('authorized administrator creates and edits products and confirms order sta
     if (path === '/api/users/me') return route.fulfill({ json: { name: 'Admin', role: 'ADMIN' } });
     if (path === '/api/admin/access') return route.fulfill({ json: { allowed: true } });
     if (path === '/api/admin/summary') return route.fulfill({ json: { products: 1, activeProducts: 1, orders: 1, pendingOrders: 1, customers: 2, devices: 0, projects: 0 } });
+    if (path === '/api/admin/packages') return route.fulfill({ json: [{ _id: id, name: 'Caixa pequena', lengthCm: 20, widthCm: 15, heightCm: 8 }] });
     if (path === '/api/admin/products' && req.method() === 'POST') { productBody = req.postDataJSON(); products.push({ _id: id, ...productBody }); return route.fulfill({ json: products[0] }); }
     if (path === `/api/admin/products/${id}` && req.method() === 'PUT') { productBody = req.postDataJSON(); products[0] = { _id: id, ...productBody }; return route.fulfill({ json: products[0] }); }
     if (path === '/api/admin/products') return route.fulfill({ json: { items: products, page: 1, limit: 20, total: products.length } });
-    if (path === '/api/admin/orders') return route.fulfill({ json: { items: [{ _id: id, status: 'PENDING', total: 89.9, customer: { name: 'Cliente', email: 'cliente@test.com' } }], total: 1 } });
+    if (path === '/api/admin/orders/unpaid') return route.fulfill({ json: { items: [{ _id: id, items: [], status: 'PENDING', total: 89.9, customer: { name: 'Cliente', email: 'cliente@test.com' } }], total: 1 } });
     if (path === `/api/admin/orders/${id}/status`) { statusBody = req.postDataJSON(); return route.fulfill({ json: { _id: id, status: 'PAID' } }); }
     return route.fulfill({ status: 404, json: {} });
   });
@@ -43,10 +45,15 @@ test('authorized administrator creates and edits products and confirms order sta
   await page.getByLabel('Descrição', { exact: true }).fill('Placa de desenvolvimento com Wi-Fi e Bluetooth.');
   await page.getByLabel('Preço (R$)').fill('89.9');
   await page.getByLabel('Estoque', { exact: true }).fill('20');
+  await page.getByRole('combobox', { name: 'Embalagem', exact: true }).selectOption(id);
+  await page.getByLabel('Peso do item (g)').fill('90');
   await page.getByLabel('Parcelamento no cartão (condição desejada)').selectOption('SELLER');
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Alteração salva.' })).toHaveText('Alteração salva.');
   expect(productBody.stock).toBe(20);
+  expect(productBody.packagingId).toBe(id);
+  expect(productBody.weightGrams).toBe(90);
+  expect(productBody.lengthCm).toBeUndefined();
   expect(productBody.installmentFeePayer).toBe('SELLER');
   expect(productBody.description).toBe('Placa de desenvolvimento com Wi-Fi e Bluetooth.');
   expect(productBody.sku).toBeUndefined();
@@ -61,11 +68,11 @@ test('authorized administrator creates and edits products and confirms order sta
   await expect(page.getByRole('status').filter({ hasText: 'Alteração salva.' })).toHaveText('Alteração salva.');
   expect(productBody.price).toBe(99.9);
   expect(productBody.installmentFeePayer).toBe('BUYER');
-  await page.getByRole('button', { name: 'Pedidos', exact: true }).click();
+  await page.getByRole('button', { name: 'Carrinhos abandonados', exact: true }).click();
   await page.getByRole('button', { name: 'Marcar como pago', exact: true }).click();
   expect(statusBody).toBeUndefined();
   await page.getByRole('button', { name: 'Confirmar alteração' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Alteração salva.' })).toHaveText('Alteração salva.');
+  await expect(page.getByRole('status').filter({ hasText: 'Pagamento confirmado.' })).toBeVisible();
   expect(statusBody).toEqual({ status: 'PAID' });
 });
 

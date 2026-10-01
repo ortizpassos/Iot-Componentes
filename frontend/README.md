@@ -69,3 +69,17 @@ Referências: [compatibilidade Angular](https://angular.dev/reference/versions) 
 O frontend consulta `GET /api/health` ao abrir e a cada 5 minutos, usando a mesma URL base da API. A chamada dispensa token, ignora erros e tem timeout de 90 segundos, sem alterar a sessao ou o carrinho. Nao ha chamadas simultaneas de health na mesma instancia da aplicacao.
 
 Funciona somente enquanto a pagina estiver aberta e o navegador executar seus timers; abas suspensas ou dispositivos em repouso podem interromper as chamadas. Para manter o servico ativo sem visitantes, configure um monitor externo ou um plano sempre ativo. Referencia: https://render.com/docs/free#spinning-down-on-idle
+
+### Embalagens para envio
+
+No ADM, abra **Embalagens** para cadastrar ou editar nome, comprimento, largura e altura (cm). No cadastro de produtos físicos, selecione a embalagem e informe o peso do item (g). Serviços não exigem esses campos.
+
+As próximas cotações de frete usam as medidas atuais da embalagem. Produtos antigos conservam suas medidas anteriores até que uma embalagem seja selecionada ao editá-los. Publique backend e frontend juntos para disponibilizar esse cadastro.
+
+### Carrinhos abandonados
+
+O carrinho de visitantes fica salvo neste navegador. Após o login, os itens são unidos ao carrinho da conta e sincronizados com a API. A recuperação consulta preços e estoque atuais; produtos inativos ou sem estoque são removidos. Sair da conta oculta os itens neste navegador, preservando o carrinho na conta.
+
+Em **ADM > Carrinhos abandonados**, aparecem carrinhos identificados com itens e sem alterações há 30 minutos. O total é uma estimativa sem frete. Carrinhos esvaziados deixam a lista; após registrar a compra, o pedido sem pagamento aparece na mesma guia. Depois de pago, fica na guia Pedidos. Não há envio automático de mensagens nesta funcionalidade. Publique backend e frontend juntos.
+
+No ADM, **Carrinhos abandonados** também mostra imediatamente os pedidos registrados com status pendente de pagamento. A guia **Pedidos** lista somente pagos, etiquetas emitidas, enviados e concluídos. Pedidos cancelados não entram nessas listas. A confirmação manual de pagamento permanece disponível na lista de pedidos sem pagamento.

@@ -30,10 +30,13 @@ export class Session {
 }
 @Injectable({ providedIn: 'root' })
 export class Cart {
+  restoring = signal(false); persistenceError = signal('');
+  updateProgramming(id: string, patch: Partial<Pick<CartLine, 'type' | 'requirements'>>) { this.lines.update(lines => lines.map(l => l.product._id === id ? { ...l, ...patch } : l)); }
+
   lines = signal<CartLine[]>([]);
   totalQuantity = computed(() => this.lines().reduce((sum, line) => sum + (Number.isInteger(line.quantity) && line.quantity > 0 ? line.quantity : 0), 0));
   setQuantity(id: string, quantity: number) { this.lines.update(lines => lines.map(line => line.product._id === id ? { ...line, quantity } : line)); }
-  canAdd(product: Product) { return product.stock > 0 && (this.lines().find(line => line.product._id === product._id)?.quantity || 0) < Math.min(10000, product.stock); }
+  canAdd(product: Product) { return !this.restoring() && product.stock > 0 && (this.lines().find(line => line.product._id === product._id)?.quantity || 0) < Math.min(10000, product.stock); }
   add(product: Product) {
     if (!this.canAdd(product)) return false;
     this.lines.update(lines => lines.some(l => l.product._id === product._id)

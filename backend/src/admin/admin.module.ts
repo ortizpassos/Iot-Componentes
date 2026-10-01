@@ -1,3 +1,4 @@
+import { PackagingModule } from '../packaging/packaging.module';
 import { PrintMonitorController, PrintMonitorService, PrintMonitorGuard } from './print-monitor';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -12,7 +13,7 @@ import { SettingsModule } from '../settings/settings.module';
 import { ProductSkuModule } from '../products/product-sku.module';
 
 @Module({
-  imports: [SettingsModule, ProductSkuModule, MongooseModule.forFeature([
+  imports: [PackagingModule, SettingsModule, ProductSkuModule, MongooseModule.forFeature([
     { name: Product.name, schema: ProductSchema }, { name: Order.name, schema: OrderSchema },
     { name: User.name, schema: UserSchema }, { name: Device.name, schema: DeviceSchema },
     { name: Project.name, schema: ProjectSchema },

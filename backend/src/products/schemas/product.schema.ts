@@ -23,6 +23,9 @@ export enum ProductType {
 
 @Schema({ timestamps: true })
 export class Product {
+  @Prop({ type: String })
+  packagingId?: string;
+
   @Prop({ default: '' })
   datasheetUrl!: string;
 

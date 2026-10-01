@@ -12,6 +12,7 @@ test('admin saves image links, uploads replacements and removes the image', asyn
   await page.route('**/api/**', async route => {
     const request = route.request(); const path = new URL(request.url()).pathname;
     if (path === '/api/users/me') return route.fulfill({ json: { name: 'Admin', role: 'ADMIN' } });
+    if (path === '/api/admin/packages') return route.fulfill({ json: [{ _id: id, name: 'Caixa', lengthCm: 20, widthCm: 15, heightCm: 8 }] });
     if (path === '/api/admin/access') return route.fulfill({ json: { allowed: true } });
     if (path === '/api/admin/product-datasheets') return route.fulfill({ json: { datasheetUrl: '/api/product-datasheets/00000000-0000-0000-0000-000000000001.pdf' } });
     if (path === '/api/admin/summary') return route.fulfill({ json: { products: 1, activeProducts: 1, orders: 0, pendingOrders: 0, customers: 1, devices: 0, projects: 0 } });
@@ -32,7 +33,9 @@ test('admin saves image links, uploads replacements and removes the image', asyn
   await page.goto('/adm');
   await page.getByRole('button', { name: 'Cadastrar componente' }).click();
   await page.getByLabel('Nome', { exact: true }).fill('Placa com foto');
-  await page.getByLabel('SKU', { exact: true }).fill('IMAGE-001');
+  await page.getByLabel('SKU').fill('IMAGE-001');
+  await page.getByRole('combobox', { name: 'Embalagem', exact: true }).selectOption(id);
+  await page.getByLabel('Peso do item (g)').fill('90');
   await page.getByLabel('Enviar datasheet PDF (até 10 MB)').setInputFiles({ name: 'datasheet.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF') });
   await expect(page.getByRole('link', { name: 'Baixar datasheet cadastrado' })).toBeVisible();
   await page.getByRole('button', { name: 'Adicionar referência' }).click();

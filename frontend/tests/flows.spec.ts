@@ -27,6 +27,8 @@ test('buy now checks out only the selected item and preserves the cart through l
   let submitted: any;
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
+    if (path === '/api/shipping/quote') return route.fulfill({ json: { originZipCode: '89031555', destinationZipCode: '01001000', services: [{ code: '1', name: 'PAC', price: 10, deliveryDays: 5 }] } });
+    if (path === '/api/cart') return route.fulfill({ json: route.request().method() === 'GET' ? { lines: [] } : { saved: true } });
     if (path === '/api/products') return route.fulfill({ json: [product, other] });
     if (path === '/api/auth/login') return route.fulfill({ json: { accessToken: 'test-token', user } });
     if (path === '/api/users/me') return route.fulfill({ json: user });
@@ -67,6 +69,8 @@ test('catalog, login and checkout send only API-owned input fields', async ({ pa
   const order = { _id: id, status: 'PENDING', total: 179.8, createdAt: '2026-09-25T12:00:00Z', items: [{ productId: id, name: product.name, sku: product.sku, quantity: 2, unitPrice: 89.9, total: 179.8, programmingRequest: { requested: true, type: 'CUSTOM', requirements: 'Acionar relé' } }] };
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
+    if (path === '/api/shipping/quote') return route.fulfill({ json: { originZipCode: '89031555', destinationZipCode: '01001000', services: [{ code: '1', name: 'PAC', price: 10, deliveryDays: 5 }] } });
+    if (path === '/api/cart') return route.fulfill({ json: route.request().method() === 'GET' ? { lines: [] } : { saved: true } });
     if (path === '/api/products') return route.fulfill({ json: [product] });
     if (path === '/api/auth/login') return route.fulfill({ json: { accessToken: 'test-token', user } });
     if (path === '/api/users/me') return route.fulfill({ json: user });
@@ -92,7 +96,7 @@ test('catalog, login and checkout send only API-owned input fields', async ({ pa
   await expect(page.getByRole('button', { name: 'Alterar dados de entrega' })).toBeVisible();
   await page.getByRole('button', { name: 'Registrar pedido' }).click();
   await expect(page.getByRole('heading', { name: 'Detalhes do pedido' })).toBeVisible();
-  expect(submitted).toEqual({ items: [{ productId: id, quantity: 2, programmingRequest: { requested: true, type: 'CUSTOM', requirements: 'Acionar relé' } }] });
+  expect(submitted).toEqual({ shippingServiceId: '1', items: [{ productId: id, quantity: 2, programmingRequest: { requested: true, type: 'CUSTOM', requirements: 'Acionar relé' } }] });
   await expect(page.getByText('Pendente', { exact: true })).toBeVisible();
 });
 

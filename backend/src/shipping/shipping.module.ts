@@ -1,3 +1,4 @@
+import { PackagingModule, PackagingService } from '../packaging/packaging.module';
 import { BadGatewayException, BadRequestException, Body, Controller, Get, Injectable, Module, Post, Query, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel, MongooseModule } from '@nestjs/mongoose';
@@ -26,6 +27,7 @@ export class ShippingService {
     @InjectModel(Product.name) private readonly products: Model<ProductDocument>,
     private readonly settings: SettingsService,
     private readonly config: ConfigService,
+    private readonly packaging: PackagingService,
   ) {}
 
   async quote(dto: ShippingQuoteDto) {
@@ -40,7 +42,8 @@ export class ShippingService {
     const productsForQuote: { quantity: number; height: number; length: number; width: number; weight: number }[] = [];
     for (const item of dto.items) {
       if (!Types.ObjectId.isValid(item.productId)) throw new BadRequestException('Produto inválido para cálculo do frete.');
-      const product = byId.get(item.productId);
+      const stored = byId.get(item.productId);
+      const product = stored?.packagingId ? { ...stored, ...await this.packaging.dimensions(stored.packagingId) } : stored;
       if (!product || !product.weightGrams || !product.lengthCm || !product.widthCm || !product.heightCm) {
         throw new BadRequestException(`Cadastre peso e dimensões de ${product?.name || 'cada produto'} antes de calcular o frete.`);
       }
@@ -85,7 +88,7 @@ export class ShippingController {
 }
 
 @Module({
-  imports: [SettingsModule, MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema }])],
+  imports: [PackagingModule, SettingsModule, MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema }])],
   controllers: [ShippingController],
   providers: [ShippingService],
   exports: [ShippingService],

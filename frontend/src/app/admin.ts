@@ -1,3 +1,5 @@
+import { AdminAbandonedCarts } from './admin-abandoned-carts';
+import { AdminPackages, Packaging } from './admin-packages';
 import { Sidebar } from './sidebar';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -10,9 +12,10 @@ import { AdminSettings } from './admin-settings';
 import { ProductImage } from './product-image';
 import { ConfirmDialog } from './confirm-dialog';
 
-type Tab = 'products' | 'orders' | 'users' | 'administrators' | 'devices' | 'projects' | 'settings';
+type Tab = 'abandoned-carts' | 'packages' | 'products' | 'orders' | 'users' | 'administrators' | 'devices' | 'projects' | 'settings';
 interface Person { _id: string; name: string; email: string }
 interface Row {
+  packagingId?: string;
   printState?: string; printError?: string;
   datasheetUrl?: string; references?: { label: string; url: string }[];
   additionalImageUrls?: string[];
@@ -27,13 +30,21 @@ interface Row {
 interface Page { items: Row[]; total: number; page: number; limit: number }
 interface Summary { products: number; activeProducts: number; orders: number; pendingOrders: number; customers: number; admins: number; devices: number; projects: number }
 function emptyForm() {
-  return { datasheetUrl: '', references: [] as { label: string; url: string }[], additionalImageUrls: [] as string[], installmentFeePayer: 'BUYER', name: '', sku: '', type: 'BOARD', price: 0, stock: 0, active: true, description: '', imageUrl: '', manufacturer: '', model: '', weightGrams: 0, lengthCm: 0, widthCm: 0, heightCm: 0,
+  return { datasheetUrl: '', references: [] as { label: string; url: string }[], additionalImageUrls: [] as string[], installmentFeePayer: 'BUYER', name: '', sku: '', type: 'BOARD', price: 0, stock: 0, active: true, description: '', imageUrl: '', manufacturer: '', model: '', packagingId: '', weightGrams: 0, lengthCm: 0, widthCm: 0, heightCm: 0,
     supported: false, platform: '', chip: '', specifications: '{}', ownerId: '', board: 'ESP32', serialNumber: '', macAddress: '', hardware: '{}',
     deviceId: '', source: 'MANUAL', status: 'DRAFT', configuration: '{}' };
 }
 
-@Component({ imports: [Sidebar, FormsModule, CurrencyPipe, DatePipe, RouterLink, AdminSettings, ProductImage, ConfirmDialog], templateUrl: './admin.html', styleUrl: './admin.css' })
+@Component({ imports: [AdminAbandonedCarts, AdminPackages, Sidebar, FormsModule, CurrencyPipe, DatePipe, RouterLink, AdminSettings, ProductImage, ConfirmDialog], templateUrl: './admin.html', styleUrl: './admin.css' })
 export class AdminPage {
+  packages = signal<Packaging[]>([]);
+  packagesLoading = signal(false);
+  packagesError = signal('');
+  loadPackages() {
+    this.packagesLoading.set(true); this.packagesError.set('');
+    this.api.get<Packaging[]>('admin/packages').subscribe({ next: items => { this.packages.set(items); this.packagesLoading.set(false); }, error: e => { this.packagesLoading.set(false); this.packagesError.set(errorMessage(e)); } });
+  }
+
   private api = inject(Api); private router = inject(Router);
   private destroyRef = inject(DestroyRef);
   uploading = signal(false); imageMessage = signal('');
@@ -45,7 +56,7 @@ export class AdminPage {
   detail = signal<(Order & { customer?: Person }) | null>(null);
   pending = signal<{ label: string; path: string; body: object; remove?: boolean; post?: boolean; successMessage?: string } | null>(null);
   ownerSearch = ''; owners = signal<Row[]>([]); ownerLoading = signal(false);
-  tabs: { key: Tab; label: string }[] = [{ key: 'products', label: 'Produtos' }, { key: 'orders', label: 'Pedidos' }, { key: 'users', label: 'Clientes' }, { key: 'administrators', label: 'Administradores' }, { key: 'devices', label: 'Dispositivos' }, { key: 'projects', label: 'Projetos' }, { key: 'settings', label: 'Configurações do site' }];
+  tabs: { key: Tab; label: string }[] = [{ key: 'products', label: 'Produtos' }, { key: 'packages', label: 'Embalagens' }, { key: 'orders', label: 'Pedidos' }, { key: 'abandoned-carts', label: 'Carrinhos abandonados' }, { key: 'users', label: 'Clientes' }, { key: 'administrators', label: 'Administradores' }, { key: 'devices', label: 'Dispositivos' }, { key: 'projects', label: 'Projetos' }, { key: 'settings', label: 'Configurações do site' }];
   productTypes = [
     { value: 'BOARD', label: 'Display' }, { value: 'SENSOR', label: 'Sensor' },
     { value: 'MODULE', label: 'Módulo' }, { value: 'KIT', label: 'Kit' },
@@ -91,7 +102,7 @@ export class AdminPage {
   select(tab: Tab) { if (this.busy()) return; this.newAdmin.set(false); this.editingAdminId = ''; this.adminAccount = { name: '', email: '', password: '' }; this.tab.set(tab); this.page.set(1); this.search = ''; this.editor.set(false); this.detail.set(null); this.pending.set(null); this.notice.set(''); this.load(); }
   load() {
     const request = ++this.requestId; this.loading.set(true); this.error.set('');
-    if (this.tab() === 'settings') { this.loading.set(false); return; }
+    if (this.tab() === 'abandoned-carts' || this.tab() === 'settings' || this.tab() === 'packages') { this.loading.set(false); return; }
     this.api.get<Page>(`admin/${this.tab()}?page=${this.page()}&limit=20&search=${encodeURIComponent(this.search)}`).subscribe({
       next: data => { if (request !== this.requestId) return; this.rows.set(data.items); this.total.set(data.total); this.loading.set(false); },
       error: error => { if (request !== this.requestId) return; this.loading.set(false); this.fail(error); },
@@ -103,12 +114,13 @@ export class AdminPage {
   label(value?: string) { return ({ CLAIMED: 'Reservada', PRINTING: 'Em impressão', ERROR: 'Falha', DONE: 'Aceita pela impressora', PENDING: 'Pendente', PAID: 'Pago', LABEL_ISSUED: 'Etiqueta emitida', SHIPPED: 'Enviado', FULFILLED: 'Concluído', CANCELLED: 'Cancelado', DRAFT: 'Rascunho', READY: 'Pronto', ARCHIVED: 'Arquivado', CUSTOMER: 'Cliente', ADMIN: 'Administrador', SUPPORT: 'Suporte' } as Record<string, string>)[value || ''] || value || ''; }
   transitions(status?: string) { return status === 'PENDING' ? ['PAID', 'CANCELLED'] : status === 'PAID' ? ['LABEL_ISSUED', 'CANCELLED'] : status === 'LABEL_ISSUED' ? ['SHIPPED'] : []; }
   start(row?: Row) {
+    if (this.tab() === 'products') this.loadPackages();
     this.imageMessage.set('');
     this.form = emptyForm(); this.editingId = row?._id || ''; this.error.set(''); this.notice.set(''); this.pending.set(null); this.owners.set([]); this.ownerSearch = '';
     if (row) {
       this.form = { ...this.form, name: row.name || '', sku: row.sku || '', type: row.type || 'BOARD', price: row.price || 0, stock: row.stock || 0,
         datasheetUrl: row.datasheetUrl || '', references: (row.references || []).map(ref => ({ ...ref })), additionalImageUrls: [...(row.additionalImageUrls || [])], installmentFeePayer: row.installmentFeePayer || 'BUYER', active: row.active !== false, description: row.description || '', imageUrl: row.imageUrl || '', manufacturer: row.manufacturer || '', model: row.model || '',
-        supported: !!row.programming?.supported, platform: row.programming?.platform || '', chip: row.programming?.chip || '', specifications: JSON.stringify(row.specifications || {}, null, 2), weightGrams: row.weightGrams || 0, lengthCm: row.lengthCm || 0, widthCm: row.widthCm || 0, heightCm: row.heightCm || 0,
+        supported: !!row.programming?.supported, platform: row.programming?.platform || '', chip: row.programming?.chip || '', specifications: JSON.stringify(row.specifications || {}, null, 2), packagingId: row.packagingId || '', weightGrams: row.weightGrams || 0, lengthCm: row.lengthCm || 0, widthCm: row.widthCm || 0, heightCm: row.heightCm || 0,
         ownerId: row.owner?._id || '', board: row.board || '', serialNumber: row.serialNumber || '', macAddress: row.macAddress || '', hardware: JSON.stringify(row.hardware || {}, null, 2),
         deviceId: row.device || '', source: row.source || 'MANUAL', status: row.status || 'DRAFT', configuration: JSON.stringify(row.configuration || {}, null, 2) };
     }
@@ -162,8 +174,9 @@ export class AdminPage {
       if (this.tab() === 'products') {
         if (f.additionalImageUrls.length > 4 || f.additionalImageUrls.some(url => !url.trim() || !this.validImageUrl(url.trim()))) throw new Error('Preencha os links das imagens adicionais ou remova os campos vazios.');
         if (!this.validImageUrl(f.imageUrl.trim())) throw new Error('Informe um link HTTP/HTTPS válido para a imagem.');
+        if (f.type !== 'SERVICE' && (!f.packagingId || !Number.isInteger(f.weightGrams) || f.weightGrams < 1)) throw new Error('Selecione uma embalagem e informe o peso do item em gramas inteiras.');
         if (!Number.isInteger(f.stock)) throw new Error('Informe um estoque inteiro.');
-        body = { name: f.name.trim(), ...(f.sku.trim() ? { sku: f.sku.trim() } : {}), type: f.type, price: f.price, stock: f.stock, active: f.active, description: f.description, imageUrl: f.imageUrl.trim(), manufacturer: f.manufacturer, model: f.model, ...(f.weightGrams > 0 ? { weightGrams: f.weightGrams, lengthCm: f.lengthCm, widthCm: f.widthCm, heightCm: f.heightCm } : {}),
+        body = { name: f.name.trim(), ...(f.sku.trim() ? { sku: f.sku.trim() } : {}), type: f.type, price: f.price, stock: f.stock, active: f.active, description: f.description, imageUrl: f.imageUrl.trim(), manufacturer: f.manufacturer, model: f.model, ...(f.type !== 'SERVICE' ? { packagingId: f.packagingId, weightGrams: f.weightGrams } : {}),
           datasheetUrl: f.datasheetUrl, references: f.references.map(ref => ({ label: ref.label.trim(), url: ref.url.trim() })), additionalImageUrls: f.additionalImageUrls.map(url => url.trim()), installmentFeePayer: f.installmentFeePayer, specifications: this.object(f.specifications, 'Especificações'), programming: { supported: f.supported, platform: f.platform, chip: f.chip } };
       } else if (this.tab() === 'devices') {
         body = { name: f.name.trim(), ownerId: f.ownerId, board: f.board.trim(), model: f.model, ...(f.serialNumber.trim() ? { serialNumber: f.serialNumber.trim() } : {}), macAddress: f.macAddress, hardware: this.object(f.hardware, 'Hardware') };

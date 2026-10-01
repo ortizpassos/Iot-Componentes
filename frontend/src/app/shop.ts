@@ -1,3 +1,4 @@
+import { CartPersistence } from './cart-persistence';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CATALOG_CATEGORIES } from './catalog-categories';
 import { Component, computed, inject, signal } from '@angular/core';
@@ -61,7 +62,8 @@ export class CatalogPage {
   <p class="eyebrow">SEU PRÓXIMO PROJETO</p><h1>{{ directPurchase ? 'Finalizar compra' : 'Carrinho' }}</h1><p class="subtitle">Revise os componentes e conte o que você quer construir.</p>
   @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
   @if (session.token() && cart.lines().length) { <app-checkout-profile (ready)="onProfileReady($event)" /> }
-  @if (loading()) { <p role="status">Carregando produto...</p> }
+  @if (!directPurchase && cart.persistenceError()) { <p class="error" role="alert">{{ cart.persistenceError() }} <button type="button" (click)="persistence.retrySave()">Tentar novamente</button></p> }
+  @if (loading() || cart.restoring()) { <p role="status">Carregando carrinho...</p> }
   @else if (!cart.lines().length) { <div class="panel empty"><h2>{{ directPurchase ? 'Produto indisponível' : 'Seu carrinho está vazio' }}</h2><p>Explore o catálogo para começar.</p><a class="button primary" routerLink="/catalogo">Explorar componentes</a></div> }
   @else { <form #form="ngForm" (ngSubmit)="submit(form)" class="checkout"><div>
     @for (line of cart.lines(); track line.product._id) { <section class="panel cart-item"><div class="row"><div><small class="muted">{{ line.product.sku }}</small><h2>{{ line.product.name }}</h2><p>{{ line.product.price | currency:'BRL' }} / unidade</p></div>@if (!directPurchase) { <button type="button" class="text-button" [disabled]="busy()" (click)="cart.remove(line.product._id)">Remover</button> }</div>
@@ -69,8 +71,8 @@ export class CatalogPage {
       <p class="muted">Disponível: {{ line.product.stock }} unidade(s).</p>
       @if (line.quantity > line.product.stock) { <p class="error" role="alert">A quantidade excede o estoque disponível.</p> }
       @if (line.product.programming?.supported) {
-        <label>Programação<select [name]="'type-' + line.product._id" [(ngModel)]="line.type" [disabled]="busy()"><option value="NONE">Sem programação</option><option value="STANDARD">Padrão</option><option value="AI">Com inteligência artificial</option><option value="CUSTOM">Personalizada</option></select></label>
-        @if (line.type !== 'NONE') { <label>O que o dispositivo deve fazer?<textarea [name]="'req-' + line.product._id" [(ngModel)]="line.requirements" [required]="line.type === 'AI' || line.type === 'CUSTOM'" maxlength="10000" [disabled]="busy()" placeholder="Descreva sensores, ações e comportamento esperado."></textarea></label> }
+        <label>Programação<select [name]="'type-' + line.product._id" [ngModel]="line.type" (ngModelChange)="cart.updateProgramming(line.product._id, { type: $event })" [disabled]="busy()"><option value="NONE">Sem programação</option><option value="STANDARD">Padrão</option><option value="AI">Com inteligência artificial</option><option value="CUSTOM">Personalizada</option></select></label>
+        @if (line.type !== 'NONE') { <label>O que o dispositivo deve fazer?<textarea [name]="'req-' + line.product._id" [ngModel]="line.requirements" (ngModelChange)="cart.updateProgramming(line.product._id, { requirements: $event })" [required]="line.type === 'AI' || line.type === 'CUSTOM'" maxlength="10000" [disabled]="busy()" placeholder="Descreva sensores, ações e comportamento esperado."></textarea></label> }
       }
     </section> }
     </div><section class="panel summary"><h2>Resumo do pedido</h2><div class="row"><span>Produtos (estimativa)</span><strong>{{ total() | currency:'BRL' }}</strong></div>
@@ -79,6 +81,7 @@ export class CatalogPage {
   </form> }
 `, styles: `.shipping-quote{margin:20px 0}.shipping-quote h3{margin:0}.shipping-quote .row{margin:8px 0}.shipping-option{display:flex;justify-content:space-between;gap:12px;margin:8px 0}.shipping-option input{width:auto}` })
 export class CartPage {
+  persistence = inject(CartPersistence);
   profileReady = signal(false);
   shippingBusy = signal(false); shippingError = signal(''); shippingQuote = signal<ShippingQuote | null>(null); selectedShippingCode = signal(''); private shippingZipCode = '';
   private route = inject(ActivatedRoute);

@@ -19,6 +19,7 @@ export class AdminController {
   @Put('products/:id') updateProduct(@Param('id') id: string, @Body() dto: CreateProductDto) { return this.admin.updateProduct(id, dto); }
   @Patch('products/:id/active') productActive(@Param('id') id: string, @Body() dto: ActiveDto) { return this.admin.productActive(id, dto.active); }
   @Get('orders') orders(@Query() query: AdminListDto) { return this.admin.listOrders(query); }
+  @Get('orders/unpaid') unpaidOrders(@Query() query: AdminListDto) { return this.admin.listUnpaidOrders(query); }
   @Get('orders/:id') order(@Param('id') id: string) { return this.admin.order(id); }
   @Post('orders/:id/retry-print') retryPrint(@Param('id') id: string) { return this.admin.retryPrint(id); }
   @Post('orders/:id/ship') ship(@Param('id') id: string, @Body() dto: ShipmentDto) { return this.admin.shipOrder(id, dto.trackingCode); }

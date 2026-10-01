@@ -4,7 +4,7 @@
   <div class="admin-stats"><div class="panel"><small>Produtos ativos</small><strong>{{ s.activeProducts }} / {{ s.products }}</strong></div><div class="panel"><small>Pedidos pendentes</small><strong>{{ s.pendingOrders }} / {{ s.orders }}</strong></div><div class="panel"><small>Clientes</small><strong>{{ s.customers }}</strong></div><div class="panel"><small>Administradores</small><strong>{{ s.admins }}</strong></div><div class="panel"><small>Dispositivos / Projetos</small><strong>{{ s.devices }} / {{ s.projects }}</strong></div></div>
 }
 @if (summaryError()) { <p class="notice">Resumo indisponível. <button (click)="loadSummary()">Atualizar resumo</button></p> }
-@if (tab() === 'settings') { <app-admin-settings /> } @else {
+@if (tab() === 'settings') { <app-admin-settings /> } @else if (tab() === 'packages') { <app-admin-packages /> } @else if (tab() === 'abandoned-carts') { <app-admin-abandoned-carts (changed)="loadSummary()" /> } @else {
 @if (tab() === 'products') { <section class="panel"><h2>Componentes do catálogo</h2><p class="muted">Cadastre displays, sensores, módulos, microcontroladores, semicondutores e acessórios com descrição, preço de venda e quantidade em estoque. Os componentes ativos aparecem no catálogo da loja.</p></section> }
 @if (error() && !pending()) { <p class="error" role="alert">{{ error() }}</p> }
 @if (notice()) { <p class="notice" role="status">{{ notice() }}</p> }
@@ -52,7 +52,15 @@
         <button type="button" [disabled]="form.additionalImageUrls.length >= 4 || busy()" (click)="form.additionalImageUrls.push('')">Adicionar outra imagem</button>
       </section>
       <label>Preço (R$)<input name="price" type="number" [(ngModel)]="form.price" min="0" step="0.01" required></label><label>Estoque<input name="stock" type="number" [(ngModel)]="form.stock" min="0" step="1" required></label>
-      <fieldset class="wide"><legend>Dimensões para cálculo do frete (opcional)</legend><div class="form-grid"><label>Peso (g)<input name="weightGrams" type="number" [(ngModel)]="form.weightGrams" min="1" step="1" placeholder="Ex.: 250"></label><label>Comprimento (cm)<input name="lengthCm" type="number" [(ngModel)]="form.lengthCm" min="1" step="0.1" placeholder="Ex.: 15"></label><label>Largura (cm)<input name="widthCm" type="number" [(ngModel)]="form.widthCm" min="1" step="0.1" placeholder="Ex.: 10"></label><label>Altura (cm)<input name="heightCm" type="number" [(ngModel)]="form.heightCm" min="1" step="0.1" placeholder="Ex.: 5"></label></div></fieldset>
+      @if (form.type !== 'SERVICE') {
+        <fieldset class="wide"><legend>Embalagem e peso para envio</legend>
+          @if (packagesError()) { <p class="error" role="alert">{{ packagesError() }}</p><button type="button" (click)="loadPackages()">Tentar novamente</button> }
+          @if (packagesLoading()) { <p role="status">Carregando embalagens...</p> }
+          @if (!packagesLoading() && !packagesError() && !packages().length) { <p>Cadastre uma embalagem na guia Embalagens antes de salvar o produto.</p> }
+          <div class="form-grid"><label>Embalagem<select name="packagingId" [(ngModel)]="form.packagingId" required><option value="">Selecione uma embalagem</option>@for (item of packages(); track item._id) { <option [value]="item._id">{{ item.name }} ({{ item.lengthCm }} × {{ item.widthCm }} × {{ item.heightCm }} cm)</option> }</select></label>
+          <label>Peso do item (g)<input name="weightGrams" type="number" [(ngModel)]="form.weightGrams" required min="1" max="1000000" step="1" placeholder="Ex.: 250"></label></div>
+        </fieldset>
+      }
       <label>Fabricante<input name="manufacturer" [(ngModel)]="form.manufacturer"></label><label>Modelo<input name="model" [(ngModel)]="form.model"></label>
       <section class="wide"><h3>Datasheet e referências</h3>
         <label>Enviar datasheet PDF (até 10 MB)<input type="file" accept="application/pdf,.pdf" (change)="uploadDatasheet($event)"></label>

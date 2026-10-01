@@ -1,3 +1,4 @@
+import { PackagingService } from '../packaging/packaging.module';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from '../auth/dto/register.dto';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
@@ -24,6 +25,7 @@ export class AdminService {
     @InjectModel(Project.name) private readonly projects: Model<Project>,
     private readonly settings: SettingsService,
     private readonly productSkuService: ProductSkuService,
+    private readonly packaging: PackagingService,
   ) {}
 
   private id(id: string) {
@@ -65,6 +67,7 @@ export class AdminService {
   }
   listProducts(query: AdminListDto) { return this.list(this.products, query, ['name', 'sku', 'model']); }
   async createProduct(dto: CreateProductDto) {
+    if (dto.packagingId) dto = { ...dto, ...await this.packaging.dimensions(dto.packagingId) };
     const data = dto.sku ? dto : { ...dto, sku: await this.productSkuService.next(dto.type) };
     return this.write(() => this.products.create(data));
   }
@@ -73,9 +76,13 @@ export class AdminService {
     if (!result.deletedCount) throw new NotFoundException('Produto não encontrado.');
     return { deleted: true };
   }
-  updateProduct(id: string, dto: CreateProductDto) { return this.update(this.products, id, dto); }
+  async updateProduct(id: string, dto: CreateProductDto) {
+    if (dto.packagingId) dto = { ...dto, ...await this.packaging.dimensions(dto.packagingId) };
+    return this.update(this.products, id, dto);
+  }
   productActive(id: string, active: boolean) { return this.update(this.products, id, { active }); }
-  listOrders(query: AdminListDto) { return this.list(this.orders, query, ['status', 'items.name', 'items.sku'], 'customer'); }
+  listOrders(query: AdminListDto) { return this.list(this.orders, query, ['status', 'items.name', 'items.sku'], 'customer', { status: { $in: [OrderStatus.PAID, OrderStatus.LABEL_ISSUED, OrderStatus.SHIPPED, OrderStatus.FULFILLED] } }); }
+  listUnpaidOrders(query: AdminListDto) { return this.list(this.orders, query, ['items.name', 'items.sku'], 'customer', { status: OrderStatus.PENDING }); }
   async order(id: string) {
     const result = await this.orders.findById(this.id(id)).populate('customer', 'name email').lean();
     if (!result) throw new NotFoundException('Pedido não encontrado.');

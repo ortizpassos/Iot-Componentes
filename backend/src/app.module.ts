@@ -1,3 +1,4 @@
+import { CartsModule } from './carts/carts.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -25,6 +26,7 @@ import { ShippingModule } from './shipping/shipping.module';
         uri: config.getOrThrow<string>('MONGODB_URI'),
       }),
     }),
+    CartsModule,
     AuthModule,
     UsersModule,
     DevicesModule,

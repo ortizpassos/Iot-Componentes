@@ -1,7 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsNotEmpty, IsNumber, IsObject,
-  IsOptional, IsString, IsUrl, Matches, Max, MaxLength, Min, ValidateNested,
+  IsMongoId, IsOptional, IsString, IsUrl, Matches, Max, MaxLength, Min, ValidateNested,
 } from 'class-validator';
 import { InstallmentFeePayer, ProductType } from '../schemas/product.schema';
 import { IsProductImageUrl } from '../image-url.validator';
@@ -28,6 +28,8 @@ export class ProductReferenceDto {
 }
 
 export class CreateProductDto {
+  @IsOptional() @IsMongoId() packagingId?: string;
+
   @IsOptional()
   @Matches(/^(|\/api\/product-datasheets\/[a-f0-9-]{36}\.pdf)$/)
   datasheetUrl?: string;

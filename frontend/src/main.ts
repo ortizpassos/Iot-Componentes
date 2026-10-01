@@ -1,3 +1,4 @@
+import { CartPersistence } from './app/cart-persistence';
 import { ApiKeepAlive } from './app/api-keep-alive';
 import { Sidebar } from './app/sidebar';
 import { FormsModule } from '@angular/forms';
@@ -34,6 +35,7 @@ registerLocaleData(localePt);
   `,
 })
 class App {
+  private cartPersistence = inject(CartPersistence);
   private keepAlive = inject(ApiKeepAlive);
   searchTerm = '';
   searchCatalog() { void this.router.navigate(['/catalogo'], { queryParams: { busca: this.searchTerm.trim() || null, categoria: this.selectedCategory() || null } }); }
