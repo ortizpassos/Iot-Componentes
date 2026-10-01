@@ -47,9 +47,11 @@ export class AdminPage {
   ownerSearch = ''; owners = signal<Row[]>([]); ownerLoading = signal(false);
   tabs: { key: Tab; label: string }[] = [{ key: 'products', label: 'Produtos' }, { key: 'orders', label: 'Pedidos' }, { key: 'users', label: 'Clientes' }, { key: 'administrators', label: 'Administradores' }, { key: 'devices', label: 'Dispositivos' }, { key: 'projects', label: 'Projetos' }, { key: 'settings', label: 'Configurações do site' }];
   productTypes = [
-    { value: 'BOARD', label: 'Placa' }, { value: 'SENSOR', label: 'Sensor' },
+    { value: 'BOARD', label: 'Display' }, { value: 'SENSOR', label: 'Sensor' },
     { value: 'MODULE', label: 'Módulo' }, { value: 'KIT', label: 'Kit' },
     { value: 'ACCESSORY', label: 'Acessório' }, { value: 'SERVICE', label: 'Serviço' },
+    { value: 'MICROCONTROLLER_PIC', label: 'Microcontrolador PIC' }, { value: 'ESP32', label: 'ESP32' },
+    { value: 'SEMICONDUCTOR', label: 'Semicondutor' }, { value: 'SMART_HOME', label: 'Casa Inteligente' },
   ];
   shipping = signal<Row | null>(null);
   trackingCode = '';
@@ -59,15 +61,21 @@ export class AdminPage {
     this.pending.set({ label: 'Confirmar envio do pedido com rastreio ' + this.trackingCode.trim() + '?', path: 'admin/orders/' + order._id + '/ship', body: { trackingCode: this.trackingCode.trim() }, post: true });
   }
   newAdmin = signal(false);
+  editingAdminId = '';
   adminAccount = { name: '', email: '', password: '' };
   createAdmin(form: NgForm) {
     if (form.invalid || this.busy()) return;
     this.busy.set(true); this.error.set('');
-    this.api.post('admin/administrators', { ...this.adminAccount, name: this.adminAccount.name.trim(), email: this.adminAccount.email.trim() }).subscribe({
-      next: () => { this.busy.set(false); this.shipping.set(null); this.newAdmin.set(false); this.adminAccount = { name: '', email: '', password: '' }; this.notice.set('Administrador cadastrado.'); this.load(); this.loadSummary(); },
+    const editing = !!this.editingAdminId;
+    const body = { ...this.adminAccount, name: this.adminAccount.name.trim(), email: this.adminAccount.email.trim(), ...(this.editingAdminId && !this.adminAccount.password ? { password: undefined } : {}) };
+    const request = this.editingAdminId ? this.api.put(`admin/administrators/${this.editingAdminId}`, body) : this.api.post('admin/administrators', body);
+    request.subscribe({
+      next: () => { this.busy.set(false); this.shipping.set(null); this.newAdmin.set(false); this.editingAdminId = ''; this.adminAccount = { name: '', email: '', password: '' }; this.notice.set(editing ? 'Administrador atualizado.' : 'Administrador cadastrado.'); this.load(); this.loadSummary(); },
       error: e => { this.busy.set(false); this.fail(e); },
     });
   }
+  editAdmin(row: Row) { this.editingAdminId = row._id; this.adminAccount = { name: row.name || '', email: row.email || '', password: '' }; this.error.set(''); this.notice.set(''); this.newAdmin.set(true); }
+  removeAdmin(row: Row) { this.pending.set({ label: `Excluir o administrador ${row.name || row.email}?`, path: `admin/administrators/${row._id}`, body: {}, remove: true }); }
   private requestId = 0;
   constructor() {
     this.load(); this.loadSummary();
@@ -80,7 +88,7 @@ export class AdminPage {
     this.error.set(errorMessage(error));
   }
   loadSummary() { this.summaryError.set(false); this.api.get<Summary>('admin/summary').subscribe({ next: data => this.summary.set(data), error: () => this.summaryError.set(true) }); }
-  select(tab: Tab) { if (this.busy()) return; this.newAdmin.set(false); this.adminAccount = { name: '', email: '', password: '' }; this.tab.set(tab); this.page.set(1); this.search = ''; this.editor.set(false); this.detail.set(null); this.pending.set(null); this.notice.set(''); this.load(); }
+  select(tab: Tab) { if (this.busy()) return; this.newAdmin.set(false); this.editingAdminId = ''; this.adminAccount = { name: '', email: '', password: '' }; this.tab.set(tab); this.page.set(1); this.search = ''; this.editor.set(false); this.detail.set(null); this.pending.set(null); this.notice.set(''); this.load(); }
   load() {
     const request = ++this.requestId; this.loading.set(true); this.error.set('');
     if (this.tab() === 'settings') { this.loading.set(false); return; }

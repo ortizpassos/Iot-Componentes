@@ -2,8 +2,9 @@ import { RegisterDto } from '../auth/dto/register.dto';
 import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, StreamableFile, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
+import { AuthenticatedUser, CurrentUser } from '../common/decorators/current-user.decorator';
 import { CreateProductDto } from '../products/dto/create-product.dto';
-import { ShipmentDto, ActiveDto, AdminDeviceDto, AdminListDto, AdminProjectDto, OrderStatusDto } from './admin.dto';
+import { ShipmentDto, ActiveDto, AdminDeviceDto, AdminListDto, AdminProjectDto, OrderStatusDto, UpdateAdminDto } from './admin.dto';
 import { AdminService } from './admin.service';
 
 @Controller('admin')
@@ -27,6 +28,8 @@ export class AdminController {
   async label(@Param('id') id: string) { return new StreamableFile(await this.admin.label(id), { type: 'application/pdf', disposition: `attachment; filename="etiqueta-${id}.pdf"` }); }
   @Patch('orders/:id/status') orderStatus(@Param('id') id: string, @Body() dto: OrderStatusDto) { return this.admin.orderStatus(id, dto.status); }
   @Post('administrators') createAdmin(@Body() dto: RegisterDto) { return this.admin.createAdmin(dto); }
+  @Put('administrators/:id') updateAdmin(@Param('id') id: string, @Body() dto: UpdateAdminDto) { return this.admin.updateAdmin(id, dto); }
+  @Delete('administrators/:id') deleteAdmin(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) { return this.admin.deleteAdmin(id, user.userId); }
   @Get('administrators') administrators(@Query() query: AdminListDto) { return this.admin.listAdmins(query); }
   @Get('users') users(@Query() query: AdminListDto) { return this.admin.listUsers(query); }
   @Patch('users/:id/active') userActive(@Param('id') id: string, @Body() dto: ActiveDto) { return this.admin.userActive(id, dto.active); }

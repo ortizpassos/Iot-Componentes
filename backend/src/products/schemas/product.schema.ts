@@ -15,6 +15,10 @@ export enum ProductType {
   KIT = 'KIT',
   ACCESSORY = 'ACCESSORY',
   SERVICE = 'SERVICE',
+  MICROCONTROLLER_PIC = 'MICROCONTROLLER_PIC',
+  ESP32 = 'ESP32',
+  SEMICONDUCTOR = 'SEMICONDUCTOR',
+  SMART_HOME = 'SMART_HOME',
 }
 
 @Schema({ timestamps: true })

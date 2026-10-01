@@ -5,7 +5,7 @@
 }
 @if (summaryError()) { <p class="notice">Resumo indisponível. <button (click)="loadSummary()">Atualizar resumo</button></p> }
 @if (tab() === 'settings') { <app-admin-settings /> } @else {
-@if (tab() === 'products') { <section class="panel"><h2>Componentes do catálogo</h2><p class="muted">Cadastre placas, sensores, módulos e acessórios com descrição, preço de venda e quantidade em estoque. Os componentes ativos aparecem no catálogo da loja.</p></section> }
+@if (tab() === 'products') { <section class="panel"><h2>Componentes do catálogo</h2><p class="muted">Cadastre displays, sensores, módulos, microcontroladores, semicondutores e acessórios com descrição, preço de venda e quantidade em estoque. Os componentes ativos aparecem no catálogo da loja.</p></section> }
 @if (error() && !pending()) { <p class="error" role="alert">{{ error() }}</p> }
 @if (notice()) { <p class="notice" role="status">{{ notice() }}</p> }
 @if (pending(); as action) { <app-confirm-dialog [message]="action.label" [busy]="busy()" [error]="error()" [destructive]="!!action.remove" (confirmed)="confirm()" (cancelled)="pending.set(null); error.set('')" /> }
@@ -15,12 +15,12 @@
 @if (tab() === 'administrators') {
   <button class="primary" [disabled]="busy()" (click)="newAdmin.set(true)">Cadastrar administrador</button>
   @if (newAdmin()) {
-    <section class="panel admin-editor"><h2>Nova conta administradora</h2><p class="muted">Esta conta terá acesso completo ao painel da loja.</p>
+    <section class="panel admin-editor"><h2>{{ editingAdminId ? 'Editar conta administradora' : 'Nova conta administradora' }}</h2><p class="muted">Esta conta terá acesso completo ao painel da loja.</p>
       <form #adminForm="ngForm" (ngSubmit)="createAdmin(adminForm)"><fieldset [disabled]="busy()">
         <label>Nome do administrador<input name="adminName" [(ngModel)]="adminAccount.name" required minlength="2" autocomplete="name"></label>
         <label>E-mail do administrador<input type="email" name="adminEmail" [(ngModel)]="adminAccount.email" required email autocomplete="off"></label>
-        <label>Senha inicial<input type="password" name="adminPassword" [(ngModel)]="adminAccount.password" required minlength="8" maxlength="72" autocomplete="new-password"></label>
-        <div class="row"><button class="primary" [disabled]="adminForm.invalid || busy()">Criar administrador</button><button type="button" (click)="newAdmin.set(false); adminAccount.password = ''">Cancelar</button></div>
+        <label>{{ editingAdminId ? 'Nova senha (opcional)' : 'Senha inicial' }}<input type="password" name="adminPassword" [(ngModel)]="adminAccount.password" [required]="!editingAdminId" minlength="8" maxlength="72" autocomplete="new-password"></label>
+        <div class="row"><button class="primary" [disabled]="adminForm.invalid || busy()">{{ editingAdminId ? 'Salvar alterações' : 'Criar administrador' }}</button><button type="button" (click)="newAdmin.set(false); editingAdminId = ''; adminAccount.password = ''">Cancelar</button></div>
       </fieldset></form>
     </section>
   }
@@ -98,7 +98,7 @@
     <td class="actions">@switch (tab()) {
       @case ('products') { <button [disabled]="busy()" (click)="start(row)">Editar</button><button [disabled]="busy()" (click)="toggle(row)">{{ row.active ? 'Desativar' : 'Ativar' }}</button><button class="danger" [disabled]="busy()" (click)="removeProduct(row)">Excluir</button> }
       @case ('orders') { @if (row.printState && row.status === 'PAID') { <small>Impressão: {{ label(row.printState) }}</small><small>{{ row.printError }}</small><button [disabled]="busy()" (click)="retryPrint(row)">Revisar e tentar impressao novamente</button> } <button [disabled]="busy()" (click)="showOrder(row)">Detalhes</button>@for (status of transitions(row.status); track status) { <button [disabled]="busy()" (click)="changeStatus(row, status)">{{ status === 'SHIPPED' ? 'Informar rastreio e enviar' : status === 'LABEL_ISSUED' ? 'Emitir etiqueta' : status === 'PAID' ? 'Marcar como pago' : label(status) }}</button> } @if (row.status === 'SHIPPED' || row.status === 'LABEL_ISSUED') { <button [disabled]="busy()" (click)="downloadLabel(row._id)">Baixar etiqueta</button> } }
-      @case ('administrators') { <small>Administrador</small> }
+      @case ('administrators') { <button [disabled]="busy()" (click)="editAdmin(row)">Editar</button><button class="danger" [disabled]="busy()" (click)="removeAdmin(row)">Excluir</button> }
       @case ('users') { @if (row.role !== 'ADMIN') { <button [disabled]="busy()" (click)="toggle(row)">{{ row.active ? 'Desativar' : 'Ativar' }}</button> } @else { <small>Administrador</small> } }
       @default { <button [disabled]="busy()" (click)="start(row)">Editar</button> }
     }</td></tr>

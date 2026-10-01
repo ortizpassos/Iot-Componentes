@@ -84,7 +84,7 @@ export class ProductDetailPage {
     this.api.post<ShippingQuote>('shipping/quote', { destinationZipCode: zipCode, items: [{ productId: this.product()!._id, quantity: 1 }] }).subscribe({ next: quote => { this.shippingQuote.set(quote); this.shippingBusy.set(false); }, error: e => { this.shippingError.set(errorMessage(e)); this.shippingBusy.set(false); } });
   }
   isObject(value: unknown) { return value !== null && typeof value === 'object'; }
-  typeLabel(type: string) { return ({ BOARD: 'Placa', SENSOR: 'Sensor', MODULE: 'Módulo', KIT: 'Kit', ACCESSORY: 'Acessório', SERVICE: 'Serviço' } as Record<string, string>)[type] || type; }
+  typeLabel(type: string) { return ({ BOARD: 'Display', SENSOR: 'Sensor', MODULE: 'Módulo', KIT: 'Kit', ACCESSORY: 'Acessório', SERVICE: 'Serviço', MICROCONTROLLER_PIC: 'Microcontrolador PIC', ESP32: 'ESP32', SEMICONDUCTOR: 'Semicondutor', SMART_HOME: 'Casa Inteligente' } as Record<string, string>)[type] || type; }
   add(product: Product) { if (!this.cart.add(product)) return; this.message.set('Produto adicionado ao carrinho.'); }
   buy(product: Product) { if (product.stock < 1) return; void this.router.navigate(['/finalizar-compra', product._id]); }
 }

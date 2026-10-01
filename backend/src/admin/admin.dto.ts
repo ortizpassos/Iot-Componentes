@@ -1,4 +1,16 @@
-import { IsBoolean, IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, Min, Matches } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsMongoId, Matches } from 'class-validator';
+
+export class UpdateAdminDto {
+  @IsString() @MinLength(2) @IsOptional()
+  name?: string;
+
+  @IsEmail() @IsOptional()
+  email?: string;
+
+  @IsString() @MinLength(8) @IsOptional()
+  password?: string;
+}
 import { Type } from 'class-transformer';
 import { OrderStatus } from '../orders/schemas/order.schema';
 import { CreateDeviceDto } from '../devices/dto/create-device.dto';

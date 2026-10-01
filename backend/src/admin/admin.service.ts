@@ -9,7 +9,7 @@ import { Order, OrderStatus } from '../orders/schemas/order.schema';
 import { User, UserRole } from '../users/schemas/user.schema';
 import { Device } from '../devices/schemas/device.schema';
 import { Project } from '../projects/schemas/project.schema';
-import { AdminDeviceDto, AdminListDto, AdminProjectDto } from './admin.dto';
+import { AdminDeviceDto, AdminListDto, AdminProjectDto, UpdateAdminDto } from './admin.dto';
 import { shippingLabel } from './shipping-label';
 import { SettingsService } from '../settings/settings.module';
 import { ProductSkuService } from '../products/product-sku.service';
@@ -131,6 +131,22 @@ export class AdminService {
       if ((error as { code?: number }).code === 11000) throw new ConflictException('E-mail já cadastrado.');
       throw error;
     }
+  }
+  async updateAdmin(id: string, dto: UpdateAdminDto) {
+    const fields: { name?: string; email?: string; password?: string } = {};
+    if (dto.name !== undefined) fields.name = dto.name.trim();
+    if (dto.email !== undefined) fields.email = dto.email.trim().toLowerCase();
+    if (dto.password) fields.password = await bcrypt.hash(dto.password, 12);
+    if (!Object.keys(fields).length) throw new BadRequestException('Informe ao menos um campo para alterar.');
+    const result = await this.users.findOneAndUpdate({ _id: this.id(id), role: UserRole.ADMIN }, { $set: fields }, { new: true, runValidators: true }).select('-password').lean();
+    if (!result) throw new NotFoundException('Administrador não encontrado.');
+    return result;
+  }
+  async deleteAdmin(id: string, currentUserId: string) {
+    if (id === currentUserId) throw new ConflictException('Não é possível excluir o próprio administrador.');
+    const result = await this.users.deleteOne({ _id: this.id(id), role: UserRole.ADMIN });
+    if (!result.deletedCount) throw new NotFoundException('Administrador não encontrado.');
+    return { deleted: true };
   }
   listUsers(query: AdminListDto) { return this.list(this.users, query, ['name', 'email'], undefined, { role: UserRole.CUSTOMER }); }
   listAdmins(query: AdminListDto) { return this.list(this.users, query, ['name', 'email'], undefined, { role: UserRole.ADMIN }); }
