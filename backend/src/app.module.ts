@@ -1,3 +1,4 @@
+import { ProjectStoreModule } from './project-store/project-store.module';
 import { CartsModule } from './carts/carts.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -15,6 +16,7 @@ import { ProductImagesModule } from './product-images/product-images.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ProductDatasheetsModule } from './product-images/product-datasheets.module';
 import { ShippingModule } from './shipping/shipping.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -31,6 +33,7 @@ import { ShippingModule } from './shipping/shipping.module';
     UsersModule,
     DevicesModule,
     ProjectsModule,
+    ProjectStoreModule,
     ProductsModule,
     OrdersModule,
     AdminModule,
@@ -39,6 +42,7 @@ import { ShippingModule } from './shipping/shipping.module';
     ProductDatasheetsModule,
     PaymentsModule,
     ShippingModule,
+    NotificationsModule,
   ],
   controllers: [HealthController],
 })

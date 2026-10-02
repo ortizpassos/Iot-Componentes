@@ -23,6 +23,8 @@ export enum ProductType {
 
 @Schema({ timestamps: true })
 export class Product {
+  @Prop({ type: String, index: true }) storeProjectId?: string;
+  @Prop({ type: String, enum: ['DIGITAL', 'PHYSICAL'], default: 'PHYSICAL' }) deliveryKind?: string;
   @Prop({ type: String })
   packagingId?: string;
 

@@ -55,6 +55,7 @@ export class OrdersService {
       }
       items.push({
         productId: new Types.ObjectId(input.productId),
+        ...(product.storeProjectId ? { storeProjectId: product.storeProjectId, deliveryKind: product.deliveryKind } : {}),
         sku: product.sku,
         name: product.name,
         installmentFeePayer: product.installmentFeePayer || InstallmentFeePayer.BUYER,
@@ -66,10 +67,12 @@ export class OrdersService {
     }
 
     let shipping: { serviceId: string; name: string; price: number; deliveryDays: number | null } | undefined;
-    if (dto.shippingServiceId) {
+    const physicalItems = items.filter(item => item.deliveryKind !== 'DIGITAL');
+    if (physicalItems.some(item => item.storeProjectId) && !dto.shippingServiceId) throw new BadRequestException('Selecione o frete para o dispositivo completo.');
+    if (dto.shippingServiceId && physicalItems.length) {
       const quote = await this.shippingService.quote({
         destinationZipCode: checkoutProfile.address.zipCode,
-        items: dto.items.map(item => ({ productId: item.productId, quantity: item.quantity })),
+        items: physicalItems.map(item => ({ productId: String(item.productId), quantity: item.quantity })),
       });
       const selected = quote.services.find(service => service.code === dto.shippingServiceId);
       if (!selected) throw new BadRequestException('A modalidade de frete selecionada não está disponível. Calcule novamente.');
@@ -82,6 +85,7 @@ export class OrdersService {
     return this.orderModel.create({
       customer: new Types.ObjectId(customerId),
       checkoutProfile,
+      requiresShipping: physicalItems.length > 0,
       status: OrderStatus.PENDING,
       items,
       ...(shipping ? { shipping } : {}),

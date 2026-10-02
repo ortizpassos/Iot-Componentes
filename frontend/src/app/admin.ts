@@ -1,3 +1,5 @@
+import { AdminProjectStore } from './admin-project-store';
+import { CartPersistence } from './cart-persistence';
 import { AdminAbandonedCarts } from './admin-abandoned-carts';
 import { AdminPackages, Packaging } from './admin-packages';
 import { Sidebar } from './sidebar';
@@ -15,6 +17,7 @@ import { ConfirmDialog } from './confirm-dialog';
 type Tab = 'abandoned-carts' | 'packages' | 'products' | 'orders' | 'users' | 'administrators' | 'devices' | 'projects' | 'settings';
 interface Person { _id: string; name: string; email: string }
 interface Row {
+  requiresShipping?: boolean;
   packagingId?: string;
   printState?: string; printError?: string;
   datasheetUrl?: string; references?: { label: string; url: string }[];
@@ -35,7 +38,7 @@ function emptyForm() {
     deviceId: '', source: 'MANUAL', status: 'DRAFT', configuration: '{}' };
 }
 
-@Component({ imports: [AdminAbandonedCarts, AdminPackages, Sidebar, FormsModule, CurrencyPipe, DatePipe, RouterLink, AdminSettings, ProductImage, ConfirmDialog], templateUrl: './admin.html', styleUrl: './admin.css' })
+@Component({ imports: [AdminProjectStore, AdminAbandonedCarts, AdminPackages, Sidebar, FormsModule, CurrencyPipe, DatePipe, RouterLink, AdminSettings, ProductImage, ConfirmDialog], templateUrl: './admin.html', styleUrl: './admin.css' })
 export class AdminPage {
   packages = signal<Packaging[]>([]);
   packagesLoading = signal(false);
@@ -49,7 +52,8 @@ export class AdminPage {
   private destroyRef = inject(DestroyRef);
   uploading = signal(false); imageMessage = signal('');
   session = inject(Session); private cart = inject(Cart);
-  logout() { this.session.clear(); this.cart.clear(); void this.router.navigate(['/login']); }
+  private cartPersistence = inject(CartPersistence);
+  async logout() { if (await this.cartPersistence.logout()) void this.router.navigate(['/login']); else this.error.set(this.cartPersistence.logoutError()); }
   tab = signal<Tab>('products'); rows = signal<Row[]>([]); summary = signal<Summary | null>(null);
   loading = signal(false); busy = signal(false); error = signal(''); notice = signal(''); summaryError = signal(false);
   editor = signal(false); editingId = ''; form = emptyForm(); search = ''; page = signal(1); total = signal(0);
@@ -102,7 +106,7 @@ export class AdminPage {
   select(tab: Tab) { if (this.busy()) return; this.newAdmin.set(false); this.editingAdminId = ''; this.adminAccount = { name: '', email: '', password: '' }; this.tab.set(tab); this.page.set(1); this.search = ''; this.editor.set(false); this.detail.set(null); this.pending.set(null); this.notice.set(''); this.load(); }
   load() {
     const request = ++this.requestId; this.loading.set(true); this.error.set('');
-    if (this.tab() === 'abandoned-carts' || this.tab() === 'settings' || this.tab() === 'packages') { this.loading.set(false); return; }
+    if (this.tab() === 'projects' || this.tab() === 'abandoned-carts' || this.tab() === 'settings' || this.tab() === 'packages') { this.loading.set(false); return; }
     this.api.get<Page>(`admin/${this.tab()}?page=${this.page()}&limit=20&search=${encodeURIComponent(this.search)}`).subscribe({
       next: data => { if (request !== this.requestId) return; this.rows.set(data.items); this.total.set(data.total); this.loading.set(false); },
       error: error => { if (request !== this.requestId) return; this.loading.set(false); this.fail(error); },

@@ -17,6 +17,7 @@ for (const width of [320, 390]) test('pages fit mobile ' + width, async ({ page 
     else if (path.endsWith('/orders')) json = [order];
     else if (path.endsWith('/orders/' + id)) json = order;
     else if (path.endsWith('/devices')) json = [{ _id: id, name: long, board: long }];
+    else if (path.endsWith('/project-store') || path.endsWith('/project-store/mine')) json = [{ _id: id, name: long, description: long, images: [], digitalPrice: 25, completeEnabled: false }];
     else if (path.endsWith('/projects')) json = [{ _id: id, name: long, description: long, status: 'DRAFT' }];
     return route.fulfill({ json });
   });

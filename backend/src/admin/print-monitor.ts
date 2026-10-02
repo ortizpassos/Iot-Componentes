@@ -47,7 +47,7 @@ export class PrintMonitorService {
   constructor(@InjectModel(Order.name) private readonly orders: Model<Order>, private readonly settings: SettingsService) {}
   async claim() {
     // Claim atomically; a repeated payment webhook cannot enqueue a second label.
-    const order = await this.orders.findOneAndUpdate({ status: OrderStatus.PAID, $or: [{ 'payment.status': 'approved' }, { labelRequestedAt: { $exists: true } }], printJob: { $exists: false } },
+    const order = await this.orders.findOneAndUpdate({ requiresShipping: { $ne: false }, status: OrderStatus.PAID, $or: [{ 'payment.status': 'approved' }, { labelRequestedAt: { $exists: true } }], printJob: { $exists: false } },
       { $set: { printJob: { token: randomUUID(), state: 'CLAIMED', claimedAt: new Date() } } },
       { new: true, sort: { createdAt: 1 } }).select('+printJob').lean();
     return order ? { id: String(order._id), token: order.printJob!.token } : null;
@@ -62,7 +62,7 @@ export class PrintMonitorService {
     if (!order) throw new ConflictException('Trabalho indisponivel.');
     try {
       const sender = order.shippingSender || await this.settings.getShippingSender();
-      const pdf = await shippingLabel(id, order.checkoutProfile, sender, order.items);
+      const pdf = await shippingLabel(id, order.checkoutProfile, sender, order.items.filter(item => item.deliveryKind !== 'DIGITAL'));
       const pwg = await renderPwg(pdf);
       const updated = await this.orders.updateOne(filter, { $set: { shippingSender: sender } });
       if (!updated.matchedCount) throw new ConflictException('Pedido alterado.');

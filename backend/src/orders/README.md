@@ -12,6 +12,8 @@ A API consulta o catálogo e salva um snapshot de productId, SKU, nome, quantida
 
 Sem solicitação de programação, o item recebe `requested: false` e `type: NONE`. Para solicitar, use `requested: true` e `STANDARD`, `AI` ou `CUSTOM`; AI e CUSTOM exigem `requirements`. O produto deve ter `programming.supported: true`. `projectId` está reservado no schema para vínculo posterior controlado pelo servidor e não é aceito do cliente.
 
+Quando o pedido passa para `PAID`, a API envia ao e-mail do cliente um resumo com número do pedido, itens, frete e total. Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` e `SMTP_FROM`; sem SMTP configurado, o pedido continua normalmente sem envio.
+
 A criação registra a intenção de compra: não reserva nem baixa estoque, não adiciona taxa de programação e não cria projetos ou dispositivos automaticamente. O total contempla somente os produtos. Pedidos sem programação podem ser pagos via [Mercado Pago](../payments/README.md); somente confirmação pelo provedor muda automaticamente o status para PAID. Não há endpoint público para alterar status.
 
 Exemplos: `backend/orders.http`. Execute `npm run test:orders` dentro de backend para compilar e verificar snapshots, totais, validação e isolamento por cliente com persistência simulada.

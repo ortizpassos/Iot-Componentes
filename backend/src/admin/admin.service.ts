@@ -14,6 +14,7 @@ import { AdminDeviceDto, AdminListDto, AdminProjectDto, UpdateAdminDto } from '.
 import { shippingLabel } from './shipping-label';
 import { SettingsService } from '../settings/settings.module';
 import { ProductSkuService } from '../products/product-sku.service';
+import { OrderEmailService } from '../notifications/order-email.service';
 
 @Injectable()
 export class AdminService {
@@ -26,6 +27,7 @@ export class AdminService {
     private readonly settings: SettingsService,
     private readonly productSkuService: ProductSkuService,
     private readonly packaging: PackagingService,
+    private readonly orderEmails?: OrderEmailService,
   ) {}
 
   private id(id: string) {
@@ -59,13 +61,13 @@ export class AdminService {
   }
   async summary() {
     const [products, activeProducts, orders, pendingOrders, customers, admins, devices, projects] = await Promise.all([
-      this.products.countDocuments(), this.products.countDocuments({ active: true }),
+      this.products.countDocuments({ storeProjectId: { $exists: false } }), this.products.countDocuments({ active: true, storeProjectId: { $exists: false } }),
       this.orders.countDocuments(), this.orders.countDocuments({ status: OrderStatus.PENDING }),
-      this.users.countDocuments({ role: UserRole.CUSTOMER }), this.users.countDocuments({ role: UserRole.ADMIN }), this.devices.countDocuments(), this.projects.countDocuments(),
+      this.users.countDocuments({ role: UserRole.CUSTOMER }), this.users.countDocuments({ role: UserRole.ADMIN }), this.devices.countDocuments(), this.products.countDocuments({ storeProjectId: { $exists: true }, deliveryKind: 'DIGITAL' }),
     ]);
     return { products, activeProducts, orders, pendingOrders, customers, admins, devices, projects };
   }
-  listProducts(query: AdminListDto) { return this.list(this.products, query, ['name', 'sku', 'model']); }
+  listProducts(query: AdminListDto) { return this.list(this.products, query, ['name', 'sku', 'model'], undefined, { storeProjectId: { $exists: false } }); }
   async createProduct(dto: CreateProductDto) {
     if (dto.packagingId) dto = { ...dto, ...await this.packaging.dimensions(dto.packagingId) };
     const data = dto.sku ? dto : { ...dto, sku: await this.productSkuService.next(dto.type) };
@@ -99,6 +101,7 @@ export class AdminService {
     if (!allowed[order.status].includes(status)) throw new ConflictException('Transição de status não permitida.');
     const result = await this.orders.findOneAndUpdate({ _id: this.id(id), status: order.status, ...(status === OrderStatus.PAID ? {} : { payment: { $exists: false } }) }, { $set: { status, ...(status === OrderStatus.PAID ? { manuallyPaidAt: new Date() } : {}) } }, { new: true, runValidators: true }).populate('customer', 'name email').lean();
     if (!result) throw new ConflictException('Pedido alterado ou com pagamento online. Pagamentos e estornos devem ser confirmados pelo Mercado Pago.');
+    if (status === OrderStatus.PAID) void this.orderEmails?.notifyPaidOrder(id);
     return result;
   }
   async retryPrint(id: string) {
@@ -116,10 +119,11 @@ export class AdminService {
   }
   async issueLabel(id: string) {
     const order = await this.order(id);
+    if (order.requiresShipping === false) throw new ConflictException('Projeto digital não possui etiqueta de envio.');
     if (order.status !== OrderStatus.PAID) throw new ConflictException('Somente pedidos pagos podem solicitar impressao.');
     const sender = await this.settings.getShippingSender();
     // Validate label data before enqueueing. Only the monitor acknowledges issuance.
-    await shippingLabel(id, order.checkoutProfile, sender, order.items);
+    await shippingLabel(id, order.checkoutProfile, sender, order.items.filter(item => item.deliveryKind !== 'DIGITAL'));
     const result = await this.orders.updateOne({ _id: this.id(id), status: OrderStatus.PAID, printJob: { $exists: false } }, { $set: { labelRequestedAt: new Date(), shippingSender: sender } });
     if (!result.matchedCount) throw new ConflictException('Pedido alterado ou com tentativa de impressao registrada. Atualize a lista e revise a tentativa existente.');
     return { queued: true };
@@ -127,7 +131,7 @@ export class AdminService {
   async label(id: string) {
     const order = await this.order(id);
     if (![OrderStatus.LABEL_ISSUED, OrderStatus.SHIPPED].includes(order.status)) throw new ConflictException('Emita a etiqueta primeiro.');
-    return shippingLabel(id, order.checkoutProfile, order.shippingSender || await this.settings.getShippingSender(), order.items);
+    return shippingLabel(id, order.checkoutProfile, order.shippingSender || await this.settings.getShippingSender(), order.items.filter(item => item.deliveryKind !== 'DIGITAL'));
   }
   async createAdmin(dto: RegisterDto) {
     if (dto.name.trim().length < 2 || Buffer.byteLength(dto.password, 'utf8') > 72) throw new BadRequestException('Nome ou senha inválidos. A senha deve ter no máximo 72 bytes.');

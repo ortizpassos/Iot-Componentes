@@ -22,6 +22,10 @@
                 "glob": "**/*",
                 "input": "public"
               }
+            ],
+            "allowedCommonJsDependencies": [
+              "spark-md5",
+              "atob-lite"
             ]
           },
           "configurations": {

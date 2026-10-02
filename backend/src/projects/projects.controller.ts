@@ -1,3 +1,4 @@
+import { AdminGuard } from '../common/guards/admin.guard';
 import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { AuthenticatedUser, CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -10,6 +11,7 @@ export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Post()
+  @UseGuards(AdminGuard)
   create(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateProjectDto,
@@ -31,6 +33,7 @@ export class ProjectsController {
   }
 
   @Delete(':id')
+  @UseGuards(AdminGuard)
   remove(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,

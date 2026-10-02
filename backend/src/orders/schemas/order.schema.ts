@@ -38,6 +38,8 @@ const ProgrammingRequestSchema = SchemaFactory.createForClass(ProgrammingRequest
 
 @Schema({ _id: false })
 export class OrderItem {
+  @Prop({ type: String, index: true }) storeProjectId?: string;
+  @Prop({ type: String, enum: ['DIGITAL', 'PHYSICAL'] }) deliveryKind?: string;
   @Prop({ type: String, enum: InstallmentFeePayer })
   installmentFeePayer?: InstallmentFeePayer;
 
@@ -75,8 +77,13 @@ const OrderShippingSchema = SchemaFactory.createForClass(OrderShipping);
 
 @Schema({ timestamps: true })
 export class Order {
+  @Prop({ default: true }) requiresShipping?: boolean;
   @Prop({ type: Date })
   manuallyPaidAt?: Date;
+  @Prop({ type: Date })
+  emailClaimedAt?: Date;
+  @Prop({ type: Date })
+  emailSentAt?: Date;
   @Prop({ type: Date })
   labelRequestedAt?: Date;
   @Prop({ type: String })

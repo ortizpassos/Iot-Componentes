@@ -83,3 +83,7 @@ O carrinho de visitantes fica salvo neste navegador. Após o login, os itens sã
 Em **ADM > Carrinhos abandonados**, aparecem carrinhos identificados com itens e sem alterações há 30 minutos. O total é uma estimativa sem frete. Carrinhos esvaziados deixam a lista; após registrar a compra, o pedido sem pagamento aparece na mesma guia. Depois de pago, fica na guia Pedidos. Não há envio automático de mensagens nesta funcionalidade. Publique backend e frontend juntos.
 
 No ADM, **Carrinhos abandonados** também mostra imediatamente os pedidos registrados com status pendente de pagamento. A guia **Pedidos** lista somente pagos, etiquetas emitidas, enviados e concluídos. Pedidos cancelados não entram nessas listas. A confirmação manual de pagamento permanece disponível na lista de pedidos sem pagamento.
+
+### Projetos prontos para venda
+
+Cadastro no ADM, compras digital/completa, arquivos protegidos e gravação USB pelo navegador: consulte [o guia de projetos](../docs/projetos-prontos.md).
