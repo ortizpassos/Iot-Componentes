@@ -32,6 +32,12 @@ export class User {
   @Prop({ required: true, select: false })
   password!: string;
 
+  @Prop({ type: String, select: false })
+  emailVerificationCodeHash?: string;
+
+  @Prop({ type: Date, select: false })
+  emailVerificationExpiresAt?: Date;
+
   @Prop({ enum: UserRole, default: UserRole.CUSTOMER })
   role!: UserRole;
 
