@@ -81,10 +81,6 @@ export class Order {
   @Prop({ type: Date })
   manuallyPaidAt?: Date;
   @Prop({ type: Date })
-  emailClaimedAt?: Date;
-  @Prop({ type: Date })
-  emailSentAt?: Date;
-  @Prop({ type: Date })
   labelRequestedAt?: Date;
   @Prop({ type: String })
   trackingCode?: string;

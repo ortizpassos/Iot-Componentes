@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: bridgeflow-postgres
+    environment:
+      POSTGRES_DB: bridgeflow_db
+      POSTGRES_USER: bridgeflow_user
+      POSTGRES_PASSWORD: bridgeflow_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - comunicacao-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../backend/Dockerfile
+    container_name: bridgeflow-backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - rabbitmq
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    networks:
+      - comunicacao-network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: bridgeflow-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - comunicacao-network
+
+  email-service:
+    build:
+      context: ./email-service
+      dockerfile: Dockerfile
+    container_name: bridgeflow-email-service
+    depends_on:
+      - rabbitmq
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    networks:
+      - comunicacao-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bridgeflow-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - comunicacao-network
+
+volumes:
+  postgres_data:
+
+networks:
+  comunicacao-network:
+    driver: bridge

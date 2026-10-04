@@ -11,15 +11,6 @@ export class UsersService {
     if (!user) throw new NotFoundException('Usuário não encontrado.');
     return user;
   }
-  findByVerificationEmail(email: string) {
-    return this.userModel.findOne({ email: email.toLowerCase() }).select('+password +emailVerificationCodeHash +emailVerificationExpiresAt');
-  }
-  async activateEmail(id: string) {
-    return this.userModel.findByIdAndUpdate(id, { $set: { active: true }, $unset: { emailVerificationCodeHash: 1, emailVerificationExpiresAt: 1 } }, { new: true }).select('+password');
-  }
-  async updateVerificationCode(id: string, codeHash: string, expiresAt: Date) {
-    await this.userModel.updateOne({ _id: id, active: false }, { $set: { emailVerificationCodeHash: codeHash, emailVerificationExpiresAt: expiresAt } });
-  }
   async requireCheckoutProfile(id: string) {
     const user = await this.checkout(id);
     if (!user.checkoutProfile) throw new ConflictException('Complete seu nome, CPF e endereço de entrega antes de comprar.');
@@ -46,7 +37,7 @@ export class UsersService {
     private readonly userModel: Model<UserDocument>,
   ) {}
 
-  create(data: { name: string; email: string; password: string; active?: boolean; emailVerificationCodeHash?: string; emailVerificationExpiresAt?: Date }) {
+  create(data: { name: string; email: string; password: string }) {
     return this.userModel.create(data);
   }
 

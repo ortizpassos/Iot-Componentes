@@ -16,7 +16,6 @@ import { ProductImagesModule } from './product-images/product-images.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ProductDatasheetsModule } from './product-images/product-datasheets.module';
 import { ShippingModule } from './shipping/shipping.module';
-import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -42,7 +41,6 @@ import { NotificationsModule } from './notifications/notifications.module';
     ProductDatasheetsModule,
     PaymentsModule,
     ShippingModule,
-    NotificationsModule,
   ],
   controllers: [HealthController],
 })

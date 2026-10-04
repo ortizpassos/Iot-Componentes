@@ -1,0 +1,8 @@
+com\monitorellas\mq\EmailListener.class
+com\monitorellas\EmailServiceApplication.class
+com\monitorellas\mail\EmailLog.class
+com\monitorellas\config\RabbitConfig.class
+com\monitorellas\mail\EmailLogRepository.class
+com\monitorellas\mail\MailService.class
+com\monitorellas\mail\EmailLog$EmailLogBuilder.class
+com\monitorellas\mail\EmailLogController.class

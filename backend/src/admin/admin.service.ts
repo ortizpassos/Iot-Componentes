@@ -14,7 +14,6 @@ import { AdminDeviceDto, AdminListDto, AdminProjectDto, UpdateAdminDto } from '.
 import { shippingLabel } from './shipping-label';
 import { SettingsService } from '../settings/settings.module';
 import { ProductSkuService } from '../products/product-sku.service';
-import { OrderEmailService } from '../notifications/order-email.service';
 
 @Injectable()
 export class AdminService {
@@ -27,7 +26,6 @@ export class AdminService {
     private readonly settings: SettingsService,
     private readonly productSkuService: ProductSkuService,
     private readonly packaging: PackagingService,
-    private readonly orderEmails?: OrderEmailService,
   ) {}
 
   private id(id: string) {
@@ -101,7 +99,6 @@ export class AdminService {
     if (!allowed[order.status].includes(status)) throw new ConflictException('Transição de status não permitida.');
     const result = await this.orders.findOneAndUpdate({ _id: this.id(id), status: order.status, ...(status === OrderStatus.PAID ? {} : { payment: { $exists: false } }) }, { $set: { status, ...(status === OrderStatus.PAID ? { manuallyPaidAt: new Date() } : {}) } }, { new: true, runValidators: true }).populate('customer', 'name email').lean();
     if (!result) throw new ConflictException('Pedido alterado ou com pagamento online. Pagamentos e estornos devem ser confirmados pelo Mercado Pago.');
-    if (status === OrderStatus.PAID) void this.orderEmails?.notifyPaidOrder(id);
     return result;
   }
   async retryPrint(id: string) {

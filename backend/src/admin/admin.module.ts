@@ -11,10 +11,9 @@ import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { SettingsModule } from '../settings/settings.module';
 import { ProductSkuModule } from '../products/product-sku.module';
-import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [PackagingModule, SettingsModule, ProductSkuModule, NotificationsModule, MongooseModule.forFeature([
+  imports: [PackagingModule, SettingsModule, ProductSkuModule, MongooseModule.forFeature([
     { name: Product.name, schema: ProductSchema }, { name: Order.name, schema: OrderSchema },
     { name: User.name, schema: UserSchema }, { name: Device.name, schema: DeviceSchema },
     { name: Project.name, schema: ProjectSchema },

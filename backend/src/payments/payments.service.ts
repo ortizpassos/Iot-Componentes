@@ -8,7 +8,6 @@ import { CreatePaymentDto } from './payment.dto';
 import { MercadoPagoService, ProviderError, ProviderPayment } from './mercado-pago.service';
 import { UsersService } from '../users/users.service';
 import { ProductsService } from '../products/products.service';
-import { OrderEmailService } from '../notifications/order-email.service';
 
 export const RETRYABLE = ['rejected', 'cancelled', 'failed'];
 export function eligible(order: Order) {
@@ -23,7 +22,7 @@ export function verifySignature(secret: string, id: string, requestId: string, s
 }
 @Injectable()
 export class PaymentsService {
-  constructor(@InjectModel(Order.name) private readonly orders: Model<Order>, private readonly provider: MercadoPagoService, private readonly config: ConfigService, private readonly users: UsersService, private readonly products: ProductsService, private readonly orderEmails?: OrderEmailService) {}
+  constructor(@InjectModel(Order.name) private readonly orders: Model<Order>, private readonly provider: MercadoPagoService, private readonly config: ConfigService, private readonly users: UsersService, private readonly products: ProductsService) {}
   async savedCard(customer: string) {
     const user = await this.users.checkout(customer);
     return user.defaultCard && user.mercadoPagoCustomerId
@@ -146,10 +145,9 @@ export class PaymentsService {
     // Only the server-to-server response can approve a pending order.
     if (payment.status === 'approved' && order.status === OrderStatus.PENDING) update.status = OrderStatus.PAID;
     if (['refunded', 'charged_back'].includes(payment.status)) update.status = OrderStatus.CANCELLED;
-    const result = await this.orders.updateOne({ _id: id, 'payment.key': key, status: order.status,
+    await this.orders.updateOne({ _id: id, 'payment.key': key, status: order.status,
       $or: [{ 'payment.updatedAt': { $exists: false } }, { 'payment.updatedAt': { $lte: updatedAt } }],
     }, { $set: update });
-    if (payment.status === 'approved' && order.status === OrderStatus.PENDING && result?.modifiedCount) void this.orderEmails?.notifyPaidOrder(id);
   }
   async webhook(id: string, requestId: string, signature: string) {
     if (!verifySignature(this.config.get<string>('MP_WEBHOOK_SECRET') || '', id || '', requestId || '', signature || '')) throw new UnauthorizedException('Assinatura inválida.');
