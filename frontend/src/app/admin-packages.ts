@@ -1,11 +1,11 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Api, errorMessage } from './core';
-export interface Packaging { _id: string; name: string; lengthCm: number; widthCm: number; heightCm: number }
+export interface Packaging { _id: string; name: string; lengthCm: number; widthCm: number; heightCm: number; maxWeightGrams?: number }
 @Component({
   selector: 'app-admin-packages', imports: [FormsModule], styleUrl: './admin.css',
   template: `
-    <section class="panel"><h2>Embalagens</h2><p>Cadastre as medidas externas das embalagens usadas no envio. Alterar uma embalagem atualiza as próximas cotações dos produtos que a utilizam.</p>
+    <section class="panel"><h2>Embalagens</h2><p>Cadastre as medidas externas das embalagens usadas no envio. Informe o peso máximo dos itens. A embalagem será escolhida automaticamente pelo peso total do pedido.</p>
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (notice()) { <p role="status">{{ notice() }}</p> }
     <h3>{{ editingId ? 'Editar embalagem' : 'Nova embalagem' }}</h3>
@@ -14,22 +14,23 @@ export interface Packaging { _id: string; name: string; lengthCm: number; widthC
       <label>Comprimento (cm)<input name="length" type="number" [(ngModel)]="form.lengthCm" required min="1" max="200" step="any"></label>
       <label>Largura (cm)<input name="width" type="number" [(ngModel)]="form.widthCm" required min="1" max="200" step="any"></label>
       <label>Altura (cm)<input name="height" type="number" [(ngModel)]="form.heightCm" required min="1" max="200" step="any"></label>
+      <label>Peso máximo (g)<input name="maxWeightGrams" type="number" [(ngModel)]="form.maxWeightGrams" required min="1" max="1000000" step="1"></label>
     </div><button class="primary" [disabled]="packageForm.invalid || !form.name.trim() || busy()">{{ busy() ? 'Salvando...' : 'Salvar embalagem' }}</button>
     @if (editingId) { <button type="button" (click)="reset()">Cancelar</button> }
     </fieldset></form></section>
     @if (loading()) { <p role="status">Carregando embalagens...</p> }
     <button [disabled]="loading() || busy()" (click)="load()">Atualizar embalagens</button>
-    @for (item of items(); track item._id) { <section class="panel"><h3>{{ item.name }}</h3><p>{{ item.lengthCm }} × {{ item.widthCm }} × {{ item.heightCm }} cm (comprimento × largura × altura)</p><button [disabled]="busy()" (click)="edit(item)">Editar embalagem</button></section> }
+    @for (item of items(); track item._id) { <section class="panel"><h3>{{ item.name }}</h3><p>{{ item.lengthCm }} × {{ item.widthCm }} × {{ item.heightCm }} cm (comprimento × largura × altura)</p><p>{{ item.maxWeightGrams ? 'Capacidade: ' + item.maxWeightGrams + ' g' : 'Informe o peso máximo para habilitar esta embalagem no frete.' }}</p><button [disabled]="busy()" (click)="edit(item)">Editar embalagem</button></section> }
     @if (!loading() && !items().length) { <p>Nenhuma embalagem cadastrada.</p> }
   `,
 })
 export class AdminPackages {
   private api = inject(Api);
   items = signal<Packaging[]>([]); loading = signal(false); busy = signal(false); error = signal(''); notice = signal('');
-  editingId = ''; form = { name: '', lengthCm: 15, widthCm: 10, heightCm: 5 };
+  editingId = ''; form = { name: '', lengthCm: 15, widthCm: 10, heightCm: 5, maxWeightGrams: null as number | null };
   constructor() { this.load(); }
-  reset() { this.editingId = ''; this.form = { name: '', lengthCm: 15, widthCm: 10, heightCm: 5 }; }
-  edit(item: Packaging) { this.editingId = item._id; this.form = { name: item.name, lengthCm: item.lengthCm, widthCm: item.widthCm, heightCm: item.heightCm }; this.notice.set(''); }
+  reset() { this.editingId = ''; this.form = { name: '', lengthCm: 15, widthCm: 10, heightCm: 5, maxWeightGrams: null as number | null }; }
+  edit(item: Packaging) { this.editingId = item._id; this.form = { name: item.name, lengthCm: item.lengthCm, widthCm: item.widthCm, heightCm: item.heightCm, maxWeightGrams: item.maxWeightGrams || null }; this.notice.set(''); }
   load() {
     this.loading.set(true); this.error.set('');
     this.api.get<Packaging[]>('admin/packages').subscribe({ next: items => { this.items.set(items); this.loading.set(false); }, error: e => { this.error.set(errorMessage(e)); this.loading.set(false); } });

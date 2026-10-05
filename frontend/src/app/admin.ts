@@ -1,7 +1,7 @@
 import { AdminProjectStore } from './admin-project-store';
 import { CartPersistence } from './cart-persistence';
 import { AdminAbandonedCarts } from './admin-abandoned-carts';
-import { AdminPackages, Packaging } from './admin-packages';
+import { AdminPackages } from './admin-packages';
 import { Sidebar } from './sidebar';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -40,14 +40,6 @@ function emptyForm() {
 
 @Component({ imports: [AdminProjectStore, AdminAbandonedCarts, AdminPackages, Sidebar, FormsModule, CurrencyPipe, DatePipe, RouterLink, AdminSettings, ProductImage, ConfirmDialog], templateUrl: './admin.html', styleUrl: './admin.css' })
 export class AdminPage {
-  packages = signal<Packaging[]>([]);
-  packagesLoading = signal(false);
-  packagesError = signal('');
-  loadPackages() {
-    this.packagesLoading.set(true); this.packagesError.set('');
-    this.api.get<Packaging[]>('admin/packages').subscribe({ next: items => { this.packages.set(items); this.packagesLoading.set(false); }, error: e => { this.packagesLoading.set(false); this.packagesError.set(errorMessage(e)); } });
-  }
-
   private api = inject(Api); private router = inject(Router);
   private destroyRef = inject(DestroyRef);
   uploading = signal(false); imageMessage = signal('');
@@ -118,7 +110,7 @@ export class AdminPage {
   label(value?: string) { return ({ CLAIMED: 'Reservada', PRINTING: 'Em impressão', ERROR: 'Falha', DONE: 'Aceita pela impressora', PENDING: 'Pendente', PAID: 'Pago', LABEL_ISSUED: 'Etiqueta emitida', SHIPPED: 'Enviado', FULFILLED: 'Concluído', CANCELLED: 'Cancelado', DRAFT: 'Rascunho', READY: 'Pronto', ARCHIVED: 'Arquivado', CUSTOMER: 'Cliente', ADMIN: 'Administrador', SUPPORT: 'Suporte' } as Record<string, string>)[value || ''] || value || ''; }
   transitions(status?: string) { return status === 'PENDING' ? ['PAID', 'CANCELLED'] : status === 'PAID' ? ['LABEL_ISSUED', 'CANCELLED'] : status === 'LABEL_ISSUED' ? ['SHIPPED'] : []; }
   start(row?: Row) {
-    if (this.tab() === 'products') this.loadPackages();
+
     this.imageMessage.set('');
     this.form = emptyForm(); this.editingId = row?._id || ''; this.error.set(''); this.notice.set(''); this.pending.set(null); this.owners.set([]); this.ownerSearch = '';
     if (row) {
@@ -178,9 +170,9 @@ export class AdminPage {
       if (this.tab() === 'products') {
         if (f.additionalImageUrls.length > 4 || f.additionalImageUrls.some(url => !url.trim() || !this.validImageUrl(url.trim()))) throw new Error('Preencha os links das imagens adicionais ou remova os campos vazios.');
         if (!this.validImageUrl(f.imageUrl.trim())) throw new Error('Informe um link HTTP/HTTPS válido para a imagem.');
-        if (f.type !== 'SERVICE' && (!f.packagingId || !Number.isInteger(f.weightGrams) || f.weightGrams < 1)) throw new Error('Selecione uma embalagem e informe o peso do item em gramas inteiras.');
+        if (f.type !== 'SERVICE' && (!Number.isInteger(f.weightGrams) || f.weightGrams < 1)) throw new Error('Informe o peso do item em gramas inteiras.');
         if (!Number.isInteger(f.stock)) throw new Error('Informe um estoque inteiro.');
-        body = { name: f.name.trim(), ...(f.sku.trim() ? { sku: f.sku.trim() } : {}), type: f.type, price: f.price, stock: f.stock, active: f.active, description: f.description, imageUrl: f.imageUrl.trim(), manufacturer: f.manufacturer, model: f.model, ...(f.type !== 'SERVICE' ? { packagingId: f.packagingId, weightGrams: f.weightGrams } : {}),
+        body = { name: f.name.trim(), ...(f.sku.trim() ? { sku: f.sku.trim() } : {}), type: f.type, price: f.price, stock: f.stock, active: f.active, description: f.description, imageUrl: f.imageUrl.trim(), manufacturer: f.manufacturer, model: f.model, ...(f.type !== 'SERVICE' ? { weightGrams: f.weightGrams } : {}),
           datasheetUrl: f.datasheetUrl, references: f.references.map(ref => ({ label: ref.label.trim(), url: ref.url.trim() })), additionalImageUrls: f.additionalImageUrls.map(url => url.trim()), installmentFeePayer: f.installmentFeePayer, specifications: this.object(f.specifications, 'Especificações'), programming: { supported: f.supported, platform: f.platform, chip: f.chip } };
       } else if (this.tab() === 'devices') {
         body = { name: f.name.trim(), ownerId: f.ownerId, board: f.board.trim(), model: f.model, ...(f.serialNumber.trim() ? { serialNumber: f.serialNumber.trim() } : {}), macAddress: f.macAddress, hardware: this.object(f.hardware, 'Hardware') };

@@ -34,7 +34,6 @@ test('admin saves image links, uploads replacements and removes the image', asyn
   await page.getByRole('button', { name: 'Cadastrar componente' }).click();
   await page.getByLabel('Nome', { exact: true }).fill('Placa com foto');
   await page.getByLabel('SKU').fill('IMAGE-001');
-  await page.getByRole('combobox', { name: 'Embalagem', exact: true }).selectOption(id);
   await page.getByLabel('Peso do item (g)').fill('90');
   await page.getByLabel('Enviar datasheet PDF (até 10 MB)').setInputFiles({ name: 'datasheet.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF') });
   await expect(page.getByRole('link', { name: 'Baixar datasheet cadastrado' })).toBeVisible();

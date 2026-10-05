@@ -36,19 +36,21 @@ export class ShippingService {
     if (!origin) throw new BadRequestException('Cadastre o CEP do remetente antes de calcular o frete.');
     if (!dto.items?.length) throw new BadRequestException('Adicione ao menos um produto para calcular o frete.');
 
-    const products = await this.products.find({ _id: { $in: dto.items.map(item => item.productId) }, active: true }).lean();
-    if (products.length !== dto.items.length) throw new BadRequestException('Um dos produtos não está disponível para frete.');
-    const byId = new Map(products.map(product => [String(product._id), product]));
-    const productsForQuote: { quantity: number; height: number; length: number; width: number; weight: number }[] = [];
     for (const item of dto.items) {
-      if (!Types.ObjectId.isValid(item.productId)) throw new BadRequestException('Produto inválido para cálculo do frete.');
-      const stored = byId.get(item.productId);
-      const product = stored?.packagingId ? { ...stored, ...await this.packaging.dimensions(stored.packagingId) } : stored;
-      if (!product || !product.weightGrams || !product.lengthCm || !product.widthCm || !product.heightCm) {
-        throw new BadRequestException(`Cadastre peso e dimensões de ${product?.name || 'cada produto'} antes de calcular o frete.`);
-      }
-      productsForQuote.push({ quantity: item.quantity, height: product.heightCm, length: product.lengthCm, width: product.widthCm, weight: product.weightGrams / 1000 });
+      if (!Types.ObjectId.isValid(item.productId) || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10000) throw new BadRequestException('Produto ou quantidade inválidos para frete.');
     }
+    const products = await this.products.find({ _id: { $in: dto.items.map(item => item.productId) }, active: true }).lean();
+    const byId = new Map(products.map(product => [String(product._id), product]));
+    let totalWeightGrams = 0;
+    for (const item of dto.items) {
+      const product = byId.get(item.productId);
+      if (!product) throw new BadRequestException('Um dos produtos não está disponível para frete.');
+      if (product.deliveryKind === 'DIGITAL') continue;
+      if (!Number.isInteger(product.weightGrams) || !product.weightGrams || product.weightGrams < 1) throw new BadRequestException('Cadastre o peso de ' + product.name + ' antes de calcular o frete.');
+      totalWeightGrams += product.weightGrams * item.quantity;
+    }
+    const selectedPackage = await this.packaging.selectForWeight(totalWeightGrams);
+    const productsForQuote = [{ quantity: 1, height: selectedPackage.heightCm, length: selectedPackage.lengthCm, width: selectedPackage.widthCm, weight: totalWeightGrams / 1000 }];
     const token = this.config.get<string>('SUPERFRETE_TOKEN')?.trim();
     if (!token) throw new ServiceUnavailableException('Configure SUPERFRETE_TOKEN para consultar o frete.');
     const baseUrl = this.config.get<string>('SUPERFRETE_BASE_URL')?.trim() || 'https://api.superfrete.com';

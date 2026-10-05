@@ -53,11 +53,8 @@
       </section>
       <label>Preço (R$)<input name="price" type="number" [(ngModel)]="form.price" min="0" step="0.01" required></label><label>Estoque<input name="stock" type="number" [(ngModel)]="form.stock" min="0" step="1" required></label>
       @if (form.type !== 'SERVICE') {
-        <fieldset class="wide"><legend>Embalagem e peso para envio</legend>
-          @if (packagesError()) { <p class="error" role="alert">{{ packagesError() }}</p><button type="button" (click)="loadPackages()">Tentar novamente</button> }
-          @if (packagesLoading()) { <p role="status">Carregando embalagens...</p> }
-          @if (!packagesLoading() && !packagesError() && !packages().length) { <p>Cadastre uma embalagem na guia Embalagens antes de salvar o produto.</p> }
-          <div class="form-grid"><label>Embalagem<select name="packagingId" [(ngModel)]="form.packagingId" required><option value="">Selecione uma embalagem</option>@for (item of packages(); track item._id) { <option [value]="item._id">{{ item.name }} ({{ item.lengthCm }} × {{ item.widthCm }} × {{ item.heightCm }} cm)</option> }</select></label>
+        <fieldset class="wide"><legend>Peso para envio</legend>
+          <div class="form-grid">
           <label>Peso do item (g)<input name="weightGrams" type="number" [(ngModel)]="form.weightGrams" required min="1" max="1000000" step="1" placeholder="Ex.: 250"></label></div>
         </fieldset>
       }

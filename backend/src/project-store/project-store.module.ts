@@ -76,10 +76,9 @@ export class ProjectStoreService {
         end = Math.ceil((part.address + size) / 4096) * 4096;
       }
     }
-    let dimensions = {};
     if (dto.completeEnabled) {
-      if (!dto.packagingId || !dto.weightGrams || dto.completePrice <= 0) throw new BadRequestException('Informe preço, embalagem e peso do dispositivo completo.');
-      dimensions = await this.packaging.dimensions(dto.packagingId);
+      if (!dto.weightGrams || dto.completePrice <= 0) throw new BadRequestException('Informe preço e peso do dispositivo completo.');
+
     }
     const projectId = previous?._id || new Types.ObjectId();
     const digitalProductId = previous?.digitalProductId || new Types.ObjectId();
@@ -92,7 +91,7 @@ export class ProjectStoreService {
         description: dto.description, price: digital ? dto.digitalPrice : dto.completePrice, stock: digital ? 1000000 : dto.stock,
         active: dto.active && (digital || dto.completeEnabled), imageUrl, programming: { supported: false },
         storeProjectId: String(projectId), deliveryKind: digital ? 'DIGITAL' : 'PHYSICAL',
-        ...(digital ? {} : { packagingId: dto.packagingId, weightGrams: dto.weightGrams, ...dimensions }),
+        ...(digital ? {} : { weightGrams: dto.weightGrams }),
       } }, { upsert: true, runValidators: true });
     }
     return this.projects.findByIdAndUpdate(projectId, { $set: { ...dto, videoUrl: dto.videoUrl || '', digitalProductId, completeProductId } }, { upsert: true, new: true, runValidators: true }).lean();

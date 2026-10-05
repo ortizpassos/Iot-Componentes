@@ -45,13 +45,12 @@ test('authorized administrator creates and edits products and confirms order sta
   await page.getByLabel('Descrição', { exact: true }).fill('Placa de desenvolvimento com Wi-Fi e Bluetooth.');
   await page.getByLabel('Preço (R$)').fill('89.9');
   await page.getByLabel('Estoque', { exact: true }).fill('20');
-  await page.getByRole('combobox', { name: 'Embalagem', exact: true }).selectOption(id);
   await page.getByLabel('Peso do item (g)').fill('90');
   await page.getByLabel('Parcelamento no cartão (condição desejada)').selectOption('SELLER');
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Alteração salva.' })).toHaveText('Alteração salva.');
   expect(productBody.stock).toBe(20);
-  expect(productBody.packagingId).toBe(id);
+  expect(productBody.packagingId).toBeUndefined();
   expect(productBody.weightGrams).toBe(90);
   expect(productBody.lengthCm).toBeUndefined();
   expect(productBody.installmentFeePayer).toBe('SELLER');

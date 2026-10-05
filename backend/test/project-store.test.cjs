@@ -31,7 +31,7 @@ test('publishing resolves binary assets, rejects overlapping flash sectors and c
  const offers = [];
  const service = new ProjectStoreService({ findByIdAndUpdate: (id, update) => ({ lean: async () => update.$set }) }, { find: () => ({ lean: async () => [{ _id: assetId, kind: 'bin', size: 8192 }] }) }, { findByIdAndUpdate: async (id, update) => { offers.push(update.$set); } }, {}, { dimensions: async () => ({ lengthCm:20,widthCm:15,heightCm:8 }) });
  const saved = await service.save(dto()); assert.equal(saved.instructions,'Privado'); assert.equal(offers[0].deliveryKind,'DIGITAL'); assert.equal(offers[0].price,25); assert.equal(offers[1].active,false);
- const complete = { ...dto(), completeEnabled:true, completePrice:100,stock:2,packagingId:assetId,weightGrams:250 }; await service.save(complete); assert.equal(offers[3].deliveryKind,'PHYSICAL'); assert.equal(offers[3].stock,2); assert.equal(offers[3].lengthCm,20);
+ const complete = { ...dto(), completeEnabled:true, completePrice:100,stock:2,weightGrams:250 }; await service.save(complete); assert.equal(offers[3].deliveryKind,'PHYSICAL'); assert.equal(offers[3].stock,2); assert.equal(offers[3].weightGrams,250); assert.equal(offers[3].lengthCm,undefined);
  await assert.rejects(service.save({ ...dto(), firmware: [] }));
  await assert.rejects(service.save({ ...dto(), completeEnabled:true }));
  const overlapping = dto(); overlapping.firmware[0].format='PARTS'; overlapping.firmware[0].parts.push({assetId,address:4096}); await assert.rejects(service.save(overlapping), /sobreposi/);

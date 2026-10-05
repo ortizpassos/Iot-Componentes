@@ -14,3 +14,5 @@ Preço deve ser não negativo, estoque deve ser inteiro não negativo e o nome n
 Use `../../products.http` no REST Client do VS Code ou copie o JSON para Postman/Insomnia. Inicie a API com `npm run start:dev` dentro de `backend`.
 
 Próxima etapa: pedidos com snapshot de SKU, nome e preço unitário, quantidade e total, e solicitação de programação (`NONE`, `STANDARD`, `AI`, `CUSTOM`, requisitos e projectId). Alterações no catálogo não devem modificar pedidos existentes.
+
+A embalagem de envio agora e selecionada automaticamente pela menor capacidade que comporte a soma de peso unitario x quantidade dos itens fisicos. Cadastre o peso maximo em gramas de cada embalagem em ADM > Embalagens. Embalagens antigas sem capacidade ficam fora da selecao. O cadastro do produto solicita apenas peso; dimensoes e embalagem antigas nao determinam mais a cotacao. Se nenhuma caixa comportar o total, a cotacao informa o erro. Projetos digitais nao entram no peso.

@@ -3,7 +3,6 @@ import { CurrencyPipe } from '@angular/common';
 import { FormsModule, NgForm } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Api, errorMessage, resolveApiUrl } from './core';
-import { Packaging } from './admin-packages';
 import { StoreProject, ProjectAsset, ProjectFirmware, ESP_CHIPS } from './project-store-model';
 function empty() { return { name: '', description: '', instructions: '', active: false, digitalPrice: 1, completeEnabled: false, completePrice: 0, stock: 0, packagingId: '', weightGrams: 1, images: [] as string[], pdfs: [] as string[], videoUrl: '', firmware: [] as ProjectFirmware[] }; }
 @Component({ selector: 'app-admin-project-store', imports: [FormsModule, CurrencyPipe, RouterLink], styleUrl: './admin.css', template: `
@@ -19,7 +18,6 @@ function empty() { return { name: '', description: '', instructions: '', active:
 @if (form.completeEnabled) {
 <label>Preço completo (R$)<input name="completePrice" type="number" [(ngModel)]="form.completePrice" required min="0.01" step="0.01"></label>
 <label>Estoque de dispositivos<input name="stock" type="number" [(ngModel)]="form.stock" required min="0" step="1"></label>
-<label>Embalagem<select name="packaging" [(ngModel)]="form.packagingId" required><option value="">Selecione</option>@for (p of packages(); track p._id) { <option [value]="p._id">{{ p.name }}</option> }</select></label>
 <label>Peso do dispositivo (g)<input name="weight" type="number" [(ngModel)]="form.weightGrams" required min="1" step="1"></label>
 }
 <section class="wide"><h3>Imagens (até 5)</h3><input aria-label="Enviar imagem do projeto" type="file" accept="image/png,image/jpeg,image/webp" [disabled]="form.images.length >= 5" (change)="upload($event, 'image')">@for (id of form.images; track id; let i = $index) { <div><img [src]="image(id)" alt="Imagem do projeto" style="width:140px;max-width:100%;height:100px;object-fit:contain"><button type="button" (click)="form.images.splice(i,1)">Remover imagem {{ i + 1 }}</button></div> }</section>
@@ -38,8 +36,8 @@ function empty() { return { name: '', description: '', instructions: '', active:
 @for (p of projects(); track p._id) { <section class="panel"><h3>{{ p.name }}</h3><p>{{ p.active ? 'Publicado' : 'Rascunho / desativado' }} · Digital: {{ p.digitalPrice | currency:'BRL' }} @if (p.completeEnabled) { · Completo: {{ p.completePrice | currency:'BRL' }} }</p><button [disabled]="busy()" (click)="start(p)">Editar projeto</button><a [routerLink]="['/projetos', p._id]">Visualizar projeto</a></section> }
 ` })
 export class AdminProjectStore {
-  private api = inject(Api); projects = signal<StoreProject[]>([]); packages = signal<Packaging[]>([]); busy = signal(false); error = signal(''); notice = signal(''); editing = signal(false); editingId = ''; form = empty(); chips = ESP_CHIPS;
-  constructor() { this.load(); this.api.get<Packaging[]>('admin/packages').subscribe({ next: p => this.packages.set(p), error: e => this.error.set(errorMessage(e)) }); }
+  private api = inject(Api); projects = signal<StoreProject[]>([]); busy = signal(false); error = signal(''); notice = signal(''); editing = signal(false); editingId = ''; form = empty(); chips = ESP_CHIPS;
+  constructor() { this.load(); }
   image(id: string) { return resolveApiUrl('/api/project-store/images/' + id); }
   load() { this.api.get<StoreProject[]>('admin/project-store').subscribe({ next: p => this.projects.set(p), error: e => this.error.set(errorMessage(e)) }); }
   start(p?: StoreProject) { this.form = p ? { ...empty(), name: p.name, description: p.description, instructions: p.instructions || '', active: p.active, digitalPrice: p.digitalPrice, completeEnabled: p.completeEnabled, completePrice: p.completePrice, stock: p.stock, packagingId: p.packagingId || '', weightGrams: p.weightGrams || 1, images: [...p.images], pdfs: [...(p.pdfs || [])], videoUrl: p.videoUrl || '', firmware: structuredClone(p.firmware || []) } : empty(); this.editingId = p?._id || ''; this.editing.set(true); this.error.set(''); this.notice.set(''); }
@@ -53,7 +51,7 @@ export class AdminProjectStore {
     if (f.invalid || this.busy()) return;
     if (this.form.firmware.some(v => !v.parts.length || v.parts.some(p => !p.assetId))) { this.error.set('Envie todos os arquivos de firmware.'); return; }
     const { packagingId, weightGrams, videoUrl, ...fields } = this.form;
-    const body = { ...fields, ...(fields.completeEnabled ? { packagingId, weightGrams } : {}), ...(videoUrl ? { videoUrl } : {}) };
+    const body = { ...fields, ...(fields.completeEnabled ? { weightGrams } : {}), ...(videoUrl ? { videoUrl } : {}) };
     this.busy.set(true); this.error.set('');
     const req = this.editingId ? this.api.put('admin/project-store/' + this.editingId, body) : this.api.post('admin/project-store', body);
     req.subscribe({ next: () => { this.busy.set(false); this.editing.set(false); this.notice.set('Projeto salvo.'); this.load(); }, error: e => { this.busy.set(false); this.error.set(errorMessage(e)); } });
