@@ -35,23 +35,6 @@ services:
         value: https://api.superfrete.com
       - key: SUPERFRETE_USER_AGENT
         sync: false
-      - key: RABBITMQ_URL
-        sync: false
-      - key: EMAIL_EXCHANGE
-        value: iot-componentes.exchange
-      - key: EMAIL_ROUTING_KEY
-        value: email.outbox
-
-  - type: worker
-    name: iot-componentes-email
-    runtime: docker
-    rootDir: email-service
-    dockerfilePath: ./Dockerfile
-    envVars:
-      - key: RABBITMQ_URL
-        sync: false
-      - key: MONGODB_URI
-        sync: false
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
@@ -61,6 +44,4 @@ services:
       - key: SMTP_PASSWORD
         sync: false
       - key: MAIL_FROM
-        sync: false
-      - key: EMAIL_LOG_TOKEN
         sync: false

@@ -7,32 +7,5 @@ services:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
-  rabbitmq:
-    image: rabbitmq:3.13-management
-    container_name: iot-componentes-rabbitmq
-    restart: unless-stopped
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-  email-service:
-    build:
-      context: ./email-service
-    container_name: iot-componentes-email-service
-    restart: unless-stopped
-    depends_on:
-      - rabbitmq
-      - mongodb
-    ports:
-      - "3002:3002"
-    environment:
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
-      MONGODB_URI: mongodb://mongodb:27017/iot_platform
-      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USERNAME: ${SMTP_USERNAME:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      MAIL_FROM: ${MAIL_FROM:-no-reply@iot-componentes.local}
-      EMAIL_LOG_TOKEN: ${EMAIL_LOG_TOKEN:-}
-
 volumes:
   mongodb_data:
