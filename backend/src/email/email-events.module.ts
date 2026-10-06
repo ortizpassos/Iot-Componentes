@@ -2,7 +2,6 @@ import { Global, Injectable, Logger, Module, OnModuleDestroy, OnModuleInit } fro
 import { ConfigService } from '@nestjs/config';
 import { InjectModel, MongooseModule, Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { createTransport, Transporter } from 'nodemailer';
 import { randomUUID } from 'node:crypto';
 
 export type StoreEmailEvent =
@@ -21,6 +20,7 @@ export class EmailJob {
   @Prop({ type: Date, required: true, default: Date.now, index: true }) nextAttemptAt!: Date;
   @Prop() error?: string;
   @Prop({ type: Date }) sentAt?: Date;
+  @Prop() providerId?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -29,7 +29,6 @@ export class EmailJob {
 export class EmailEventsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(EmailEventsService.name);
   private timer?: NodeJS.Timeout;
-  private transporter?: Transporter;
   private processing = false;
 
   constructor(@InjectModel(EmailJob.name) private readonly jobs: Model<EmailJob>, private readonly config: ConfigService) {}
@@ -40,7 +39,7 @@ export class EmailEventsService implements OnModuleInit, OnModuleDestroy {
     setTimeout(() => void this.process(), 1_000).unref();
   }
 
-  onModuleDestroy() { if (this.timer) clearInterval(this.timer); this.transporter?.close(); }
+  onModuleDestroy() { if (this.timer) clearInterval(this.timer); }
 
   async publish(event: StoreEmailEvent) {
     try {
@@ -51,21 +50,9 @@ export class EmailEventsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private mailer() {
-    if (this.transporter) return this.transporter;
-    const host = this.config.get<string>('SMTP_HOST');
-    const user = this.config.get<string>('SMTP_USERNAME');
-    const pass = this.config.get<string>('SMTP_PASSWORD');
-    if (!host || !user || !pass) return undefined;
-    const port = Number(this.config.get<string>('SMTP_PORT') || 587);
-    this.transporter = createTransport({ host, port, secure: port === 465, auth: { user, pass } });
-    return this.transporter;
-  }
-
   private async process() {
     if (this.processing) return;
-    const mailer = this.mailer();
-    if (!mailer) return;
+    if (!this.config.get<string>('BREVO_API_KEY') || !this.config.get<string>('MAIL_FROM')) return;
     this.processing = true;
     try {
       for (let count = 0; count < 10; count++) {
@@ -78,14 +65,30 @@ export class EmailEventsService implements OnModuleInit, OnModuleDestroy {
         if (!job) break;
         try {
           const message = this.message(job.payload);
-          await mailer.sendMail({ from: this.config.get<string>('MAIL_FROM') || this.config.get<string>('SMTP_USERNAME'), to: job.recipient, ...message });
-          await this.jobs.updateOne({ _id: job._id, state: 'SENDING' }, { $set: { state: 'SENT', sentAt: new Date() }, $unset: { error: 1 } });
+          const providerId = await this.send(job.eventId, job.recipient, job.payload.name, message);
+          await this.jobs.updateOne({ _id: job._id, state: 'SENDING' }, { $set: { state: 'SENT', sentAt: new Date(), providerId }, $unset: { error: 1 } });
         } catch (error) {
           const delayMinutes = Math.min(30, 2 ** job.attempts);
           await this.jobs.updateOne({ _id: job._id, state: 'SENDING' }, { $set: { state: 'FAILED', error: this.error(error), nextAttemptAt: new Date(Date.now() + delayMinutes * 60_000) } });
         }
       }
     } finally { this.processing = false; }
+  }
+
+  private async send(eventId: string, recipient: string, recipientName: string, message: { subject: string; text: string }) {
+    const response = await fetch(this.config.get<string>('BREVO_API_URL') || 'https://api.brevo.com/v3/smtp/email', {
+      method: 'POST', signal: AbortSignal.timeout(15_000),
+      headers: { accept: 'application/json', 'content-type': 'application/json', 'api-key': this.config.getOrThrow<string>('BREVO_API_KEY') },
+      body: JSON.stringify({
+        sender: { name: this.config.get<string>('MAIL_FROM_NAME') || 'IoT Componentes', email: this.config.getOrThrow<string>('MAIL_FROM') },
+        to: [{ email: recipient, name: recipientName || 'Cliente' }], subject: message.subject, textContent: message.text,
+        headers: { 'Idempotency-Key': eventId },
+      }),
+    });
+    const body = await response.text();
+    if (!response.ok) throw new Error(`Brevo HTTP ${response.status}: ${body.slice(0, 500)}`);
+    try { return String((JSON.parse(body) as { messageId?: string }).messageId || 'accepted'); }
+    catch { return 'accepted'; }
   }
 
   private message(event: StoreEmailEvent) {

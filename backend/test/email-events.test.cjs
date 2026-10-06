@@ -25,3 +25,19 @@ test('email templates include payment and Correios tracking details', () => {
   assert.match(shipped.text, /NN405178567BR/);
   assert.match(shipped.text, /rastreamento\.correios\.com\.br/);
 });
+
+test('Brevo transport sends through HTTPS with the verified sender and API key', async () => {
+  const previous = global.fetch; let request;
+  global.fetch = async (url, options) => { request = { url, options, body: JSON.parse(options.body) }; return new Response(JSON.stringify({ messageId: 'brevo-message' }), { status: 201 }); };
+  try {
+    const values = { BREVO_API_KEY: 'secret-key', BREVO_API_URL: 'https://api.brevo.com/v3/smtp/email', MAIL_FROM: 'sender@example.com', MAIL_FROM_NAME: 'IoT Componentes' };
+    const service = new EmailEventsService({}, { get: key => values[key], getOrThrow: key => values[key] });
+    const id = await service.send('event-1', 'cliente@example.com', 'Cliente', { subject: 'Assunto', text: 'Mensagem' });
+    assert.equal(id, 'brevo-message');
+    assert.equal(request.url, values.BREVO_API_URL);
+    assert.equal(request.options.headers['api-key'], 'secret-key');
+    assert.deepEqual(request.body.sender, { name: 'IoT Componentes', email: 'sender@example.com' });
+    assert.equal(request.body.to[0].email, 'cliente@example.com');
+    assert.equal(request.body.headers['Idempotency-Key'], 'event-1');
+  } finally { global.fetch = previous; }
+});
