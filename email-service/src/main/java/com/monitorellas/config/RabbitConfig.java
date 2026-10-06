@@ -9,21 +9,25 @@ import org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 
 @Configuration
 public class RabbitConfig {
+    @Value("${app.mq.exchange}") private String exchange;
+    @Value("${app.mq.queue}") private String queue;
+    @Value("${app.mq.routing-key}") private String routingKey;
     @Bean
     public DirectExchange bridgeflowExchange() {
-        return new DirectExchange("bridgeflow.exchange", true, false);
+        return new DirectExchange(exchange, true, false);
     }
     @Bean
     public Queue emailOutboxQueue() {
-        return new Queue("email.outbox", true);
+        return new Queue(queue, true);
     }
 
     @Bean
     public Binding emailOutboxBinding(Queue emailOutboxQueue, DirectExchange bridgeflowExchange) {
-        return BindingBuilder.bind(emailOutboxQueue).to(bridgeflowExchange).with("bridgeflow.routingkey");
+        return BindingBuilder.bind(emailOutboxQueue).to(bridgeflowExchange).with(routingKey);
     }
 
 
@@ -31,7 +35,7 @@ public class RabbitConfig {
     public MessageConverter messageConverter() {
         Jackson2JsonMessageConverter converter = new Jackson2JsonMessageConverter();
         DefaultJackson2JavaTypeMapper typeMapper = new DefaultJackson2JavaTypeMapper();
-        typeMapper.setTrustedPackages("*"); // Allow all packages
+        typeMapper.setTrustedPackages("java.util", "java.lang");
         converter.setJavaTypeMapper(typeMapper);
         return converter;
     }

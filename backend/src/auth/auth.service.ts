@@ -1,15 +1,17 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { EmailEventsService } from '../email/email-events.module';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    @Optional() private readonly emails?: EmailEventsService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -22,6 +24,7 @@ export class AuthService {
       email: dto.email,
       password,
     });
+    void this.emails?.publish({ type: 'customer.registered', email: user.email, name: user.name });
 
     return this.createLoginResponse(user);
   }

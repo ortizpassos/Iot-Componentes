@@ -7,7 +7,8 @@ export class FirmwarePartDto {
 }
 export class FirmwareDto {
   @IsString() @IsNotEmpty() @MaxLength(100) name!: string;
-  @IsIn(CHIPS) chip!: string;
+  @IsOptional() @IsString() @MaxLength(1000) description?: string;
+  @IsOptional() @IsIn(CHIPS) chip?: string;
   @IsIn(['MERGED', 'PARTS']) format!: string;
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(8) @ValidateNested({ each: true }) @Type(() => FirmwarePartDto) parts!: FirmwarePartDto[];
 }
@@ -17,7 +18,8 @@ export class StoreProjectDto {
   @IsString() @MaxLength(20000) description!: string;
   @IsString() @MaxLength(50000) instructions!: string;
   @IsBoolean() active!: boolean;
-  @IsNumber() @Min(0.01) @Max(1000000) digitalPrice!: number;
+  @IsOptional() @IsBoolean() isFree?: boolean;
+  @IsNumber() @Min(0) @Max(1000000) digitalPrice!: number;
   @IsBoolean() completeEnabled!: boolean;
   @IsNumber() @Min(0) @Max(1000000) completePrice!: number;
   @IsInt() @Min(0) @Max(1000000) stock!: number;

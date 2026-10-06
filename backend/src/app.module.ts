@@ -16,6 +16,7 @@ import { ProductImagesModule } from './product-images/product-images.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ProductDatasheetsModule } from './product-images/product-datasheets.module';
 import { ShippingModule } from './shipping/shipping.module';
+import { EmailEventsModule } from './email/email-events.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ShippingModule } from './shipping/shipping.module';
       }),
     }),
     CartsModule,
+    EmailEventsModule,
     AuthModule,
     UsersModule,
     DevicesModule,

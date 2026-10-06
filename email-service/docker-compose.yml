@@ -1,71 +1,31 @@
-version: '3.8'
-
 services:
-  postgres:
-    image: postgres:15
-    container_name: bridgeflow-postgres
-    environment:
-      POSTGRES_DB: bridgeflow_db
-      POSTGRES_USER: bridgeflow_user
-      POSTGRES_PASSWORD: bridgeflow_pass
+  mongodb:
+    image: mongo:8
     ports:
-      - "5432:5432"
+      - "27017:27017"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - comunicacao-network
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: ../backend/Dockerfile
-    container_name: bridgeflow-backend
-    ports:
-      - "8080:8080"
-    depends_on:
-      - postgres
-      - rabbitmq
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-    networks:
-      - comunicacao-network
-
+      - mongodb_data:/data/db
   rabbitmq:
-    image: rabbitmq:3-management
-    container_name: bridgeflow-rabbitmq
+    image: rabbitmq:3.13-management
     ports:
       - "5672:5672"
       - "15672:15672"
-    networks:
-      - comunicacao-network
-
   email-service:
-    build:
-      context: ./email-service
-      dockerfile: Dockerfile
-    container_name: bridgeflow-email-service
+    build: .
     depends_on:
+      - mongodb
       - rabbitmq
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-    networks:
-      - comunicacao-network
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: bridgeflow-frontend
     ports:
-      - "3000:80"
-    depends_on:
-      - backend
-    networks:
-      - comunicacao-network
+      - "3002:3002"
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/iot_platform
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@iot-componentes.local}
+      EMAIL_LOG_TOKEN: ${EMAIL_LOG_TOKEN:-}
 
 volumes:
-  postgres_data:
-
-networks:
-  comunicacao-network:
-    driver: bridge
+  mongodb_data:

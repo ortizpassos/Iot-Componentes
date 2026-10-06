@@ -65,7 +65,7 @@ bootstrapApplication(App, { providers: [
     { path: 'pedidos/:id', canActivate: [authGuard], loadComponent: () => import('./app/orders').then(m => m.OrderDetailPage) },
     { path: 'dispositivos', canActivate: [authGuard], loadComponent: () => import('./app/workspace').then(m => m.DevicesPage) },
     { path: 'projetos/:id', canActivate: [authGuard], canDeactivate: [(component: { flashing: () => boolean }) => !component.flashing()], loadComponent: () => import('./app/store-projects').then(m => m.StoreProjectPage) },
-    { path: 'meu-lab', canActivate: [authGuard], loadComponent: () => import('./app/my-lab').then(m => m.MyLabPage) },
+    { path: 'meu-lab', canActivate: [authGuard], canDeactivate: [(component: { flashing: () => boolean }) => !component.flashing()], loadComponent: () => import('./app/my-lab').then(m => m.MyLabPage) },
     { path: 'projetos', canActivate: [authGuard], loadComponent: () => import('./app/store-projects').then(m => m.StoreProjectsPage) },
     { path: '', pathMatch: 'full', redirectTo: 'catalogo' }, { path: '**', redirectTo: 'catalogo' },
   ]),

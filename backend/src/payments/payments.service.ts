@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -8,6 +8,7 @@ import { CreatePaymentDto } from './payment.dto';
 import { MercadoPagoService, ProviderError, ProviderPayment } from './mercado-pago.service';
 import { UsersService } from '../users/users.service';
 import { ProductsService } from '../products/products.service';
+import { EmailEventsService } from '../email/email-events.module';
 
 export const RETRYABLE = ['rejected', 'cancelled', 'failed'];
 export function eligible(order: Order) {
@@ -22,7 +23,7 @@ export function verifySignature(secret: string, id: string, requestId: string, s
 }
 @Injectable()
 export class PaymentsService {
-  constructor(@InjectModel(Order.name) private readonly orders: Model<Order>, private readonly provider: MercadoPagoService, private readonly config: ConfigService, private readonly users: UsersService, private readonly products: ProductsService) {}
+  constructor(@InjectModel(Order.name) private readonly orders: Model<Order>, private readonly provider: MercadoPagoService, private readonly config: ConfigService, private readonly users: UsersService, private readonly products: ProductsService, @Optional() private readonly emails?: EmailEventsService) {}
   async savedCard(customer: string) {
     const user = await this.users.checkout(customer);
     return user.defaultCard && user.mercadoPagoCustomerId
@@ -145,9 +146,15 @@ export class PaymentsService {
     // Only the server-to-server response can approve a pending order.
     if (payment.status === 'approved' && order.status === OrderStatus.PENDING) update.status = OrderStatus.PAID;
     if (['refunded', 'charged_back'].includes(payment.status)) update.status = OrderStatus.CANCELLED;
-    await this.orders.updateOne({ _id: id, 'payment.key': key, status: order.status,
+    const result = await this.orders.updateOne({ _id: id, 'payment.key': key, status: order.status,
       $or: [{ 'payment.updatedAt': { $exists: false } }, { 'payment.updatedAt': { $lte: updatedAt } }],
     }, { $set: update });
+    if (result?.modifiedCount && update.status === OrderStatus.PAID && this.emails) {
+      try {
+        const customer = await this.users.checkout(String(order.customer));
+        void this.emails.publish({ type: 'order.paid', email: customer.email, name: customer.name, orderId: id, total: order.total });
+      } catch { /* Email notification cannot change the confirmed payment result. */ }
+    }
   }
   async webhook(id: string, requestId: string, signature: string) {
     if (!verifySignature(this.config.get<string>('MP_WEBHOOK_SECRET') || '', id || '', requestId || '', signature || '')) throw new UnauthorizedException('Assinatura inválida.');

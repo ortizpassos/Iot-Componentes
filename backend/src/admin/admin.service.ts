@@ -1,7 +1,7 @@
 import { PackagingService } from '../packaging/packaging.module';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from '../auth/dto/register.dto';
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Product } from '../products/schemas/product.schema';
@@ -14,6 +14,7 @@ import { AdminDeviceDto, AdminListDto, AdminProjectDto, UpdateAdminDto } from '.
 import { shippingLabel } from './shipping-label';
 import { SettingsService } from '../settings/settings.module';
 import { ProductSkuService } from '../products/product-sku.service';
+import { EmailEventsService } from '../email/email-events.module';
 
 @Injectable()
 export class AdminService {
@@ -26,6 +27,7 @@ export class AdminService {
     private readonly settings: SettingsService,
     private readonly productSkuService: ProductSkuService,
     private readonly packaging: PackagingService,
+    @Optional() private readonly emails?: EmailEventsService,
   ) {}
 
   private id(id: string) {
@@ -99,6 +101,7 @@ export class AdminService {
     if (!allowed[order.status].includes(status)) throw new ConflictException('Transição de status não permitida.');
     const result = await this.orders.findOneAndUpdate({ _id: this.id(id), status: order.status, ...(status === OrderStatus.PAID ? {} : { payment: { $exists: false } }) }, { $set: { status, ...(status === OrderStatus.PAID ? { manuallyPaidAt: new Date() } : {}) } }, { new: true, runValidators: true }).populate('customer', 'name email').lean();
     if (!result) throw new ConflictException('Pedido alterado ou com pagamento online. Pagamentos e estornos devem ser confirmados pelo Mercado Pago.');
+    if (status === OrderStatus.PAID) this.notifyOrder(result, 'order.paid');
     return result;
   }
   async retryPrint(id: string) {
@@ -112,7 +115,14 @@ export class AdminService {
     if (order.status !== OrderStatus.LABEL_ISSUED) throw new ConflictException('Emita a etiqueta antes de confirmar o envio.');
     const result = await this.orders.findOneAndUpdate({ _id: this.id(id), status: OrderStatus.LABEL_ISSUED }, { $set: { status: OrderStatus.SHIPPED, shippedAt: new Date(), trackingCode } }, { new: true }).populate('customer', 'name email').lean();
     if (!result) throw new ConflictException('Pedido alterado. Atualize a lista.');
+    this.notifyOrder(result, 'order.shipped');
     return result;
+  }
+  private notifyOrder(order: any, type: 'order.paid' | 'order.shipped') {
+    const customer = order.customer;
+    if (!this.emails || !customer?.email) return;
+    if (type === 'order.paid') void this.emails.publish({ type, email: customer.email, name: customer.name || 'Cliente', orderId: String(order._id), total: order.total });
+    else void this.emails.publish({ type, email: customer.email, name: customer.name || 'Cliente', orderId: String(order._id), trackingCode: order.trackingCode });
   }
   async issueLabel(id: string) {
     const order = await this.order(id);

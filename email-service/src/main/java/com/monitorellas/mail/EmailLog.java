@@ -1,22 +1,20 @@
 package com.monitorellas.mail;
 
-import jakarta.persistence.*;
 import lombok.*;
-import java.time.OffsetDateTime;
+import java.time.Instant;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "email_logs")
+@Document(collection = "email_logs")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class EmailLog {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private String id;
 
     private String recipient;
     private String subject;
-    @Column(length=2048)
     private String body;
-    private OffsetDateTime sentAt;
+    private Instant sentAt;
     private boolean success;
     private String error;
 }

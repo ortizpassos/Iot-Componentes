@@ -4,18 +4,19 @@ spring:
   application:
     name: email-service
   rabbitmq:
-    host: ${RABBITMQ_HOST:rabbitmq}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASS:guest}
-  datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:db}:${POSTGRES_PORT:5432}/${POSTGRES_DB:bridgeflow}
-    username: ${POSTGRES_USER:bridgeflow}
-    password: ${POSTGRES_PASSWORD:bridgeflow123}
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: false
+    addresses: ${RABBITMQ_URL:amqp://guest:guest@rabbitmq:5672}
+    listener:
+      simple:
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 2s
+          multiplier: 2
+          max-interval: 30s
+          max-attempts: 4
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://mongodb:27017/iot_platform}
   mail:
     host: ${SMTP_HOST}
     port: ${SMTP_PORT:587}
@@ -28,10 +29,11 @@ spring:
           starttls:
             enable: true
 app:
+  logs:
+    token: ${EMAIL_LOG_TOKEN:}
   mq:
-    exchange: bridgeflow.exchange
+    exchange: ${EMAIL_EXCHANGE:iot-componentes.exchange}
     queue: email.outbox
-    routing:
-      operacao_created: bridgeflow.routingkey
+    routing-key: ${EMAIL_ROUTING_KEY:email.outbox}
   mail:
-    from: ${MAIL_FROM:no-reply@monitor-ellas.local}
+    from: ${MAIL_FROM:no-reply@iot-componentes.local}
