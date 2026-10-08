@@ -29,7 +29,7 @@ test('payment lookup casts authenticated customer IDs and preserves ownership', 
   }
 });
 function fixture() {
-  const state = { _id: id, customer, status: 'PENDING', total: 89.9, items: [{ productId: id, quantity: 1, name: 'Sensor', programmingRequest: { requested: false, type: 'NONE' } }] };
+  const state = { _id: id, customer, status: 'PENDING', total: 89.9, reservationExpiresAt: new Date(Date.now() + 5 * 60_000), items: [{ productId: id, quantity: 1, name: 'Sensor', programmingRequest: { requested: false, type: 'NONE' } }] };
   const field = (obj, key) => key.split('.').reduce((o, k) => o?.[k], obj);
   const match = filter => Object.entries(filter).every(([key, value]) => {
     if (key === '$or') return value.some(match);
@@ -59,8 +59,9 @@ function fixture() {
     checkout: async () => ({ email: 'account@example.com', mercadoPagoCustomerId: 'owned-customer', defaultCard: { id: 'owned-card' } }),
     saveDefaultCard: async () => {},
   };
-  const service = new PaymentsService(model, provider, { get: key => key === 'MP_WEBHOOK_SECRET' ? 'test-secret' : undefined }, users, { findById: async () => ({ active: true, stock: 20 }) });
-  return { service, state, provider, users, created: () => created, body: () => body, remote: () => remote };
+  const products = { findById: async () => ({ active: true, stock: 20 }) };
+  const service = new PaymentsService(model, provider, { get: key => key === 'MP_WEBHOOK_SECRET' ? 'test-secret' : undefined }, users, products);
+  return { service, state, provider, users, products, created: () => created, body: () => body, remote: () => remote };
 }
 
 test('missing delivery profile blocks payment before creating a charge', async () => {
@@ -178,8 +179,8 @@ test('failed cancellation or approval during switch never enables another charge
   assert.equal(result.orderStatus, 'PAID'); assert.equal(result.canPay, false);
 });
 
-test('stock changes block payment before creating a provider charge', async () => {
- const f = fixture(); f.state.items[0].quantity = 21;
- await assert.rejects(f.service.create(customer, id, dto), e => e.getStatus() === 409);
- assert.equal(f.created(), 0); assert.equal(f.state.payment, undefined);
+test('payment uses the stock reservation instead of the remaining catalog stock', async () => {
+ const f = fixture(); f.products.findById = async () => ({ active: true, stock: 0 });
+ await f.service.create(customer, id, dto);
+ assert.equal(f.created(), 1);
 });

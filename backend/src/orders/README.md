@@ -12,6 +12,6 @@ A API consulta o catálogo e salva um snapshot de productId, SKU, nome, quantida
 
 Sem solicitação de programação, o item recebe `requested: false` e `type: NONE`. Para solicitar, use `requested: true` e `STANDARD`, `AI` ou `CUSTOM`; AI e CUSTOM exigem `requirements`. O produto deve ter `programming.supported: true`. `projectId` está reservado no schema para vínculo posterior controlado pelo servidor e não é aceito do cliente.
 
-A criação registra a intenção de compra: não reserva nem baixa estoque, não adiciona taxa de programação e não cria projetos ou dispositivos automaticamente. O total contempla somente os produtos. Pedidos sem programação podem ser pagos via [Mercado Pago](../payments/README.md); somente confirmação pelo provedor muda automaticamente o status para PAID. Não há endpoint público para alterar status.
+A criação reserva atomicamente as unidades por 5 minutos e baixa o estoque disponível. Se o pagamento não for confirmado nesse prazo, o pedido fica CANCELLED e as unidades retornam ao estoque. A reserva não adiciona taxa de programação nem cria projetos ou dispositivos automaticamente. O total contempla somente os produtos. Pedidos sem programação podem ser pagos via [Mercado Pago](../payments/README.md); somente confirmação pelo provedor muda automaticamente o status para PAID. Não há endpoint público para alterar status.
 
 Exemplos: `backend/orders.http`. Execute `npm run test:orders` dentro de backend para compilar e verificar snapshots, totais, validação e isolamento por cliente com persistência simulada.

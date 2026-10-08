@@ -10,11 +10,12 @@ import { Order, OrderStatus } from '../orders/schemas/order.schema';
 import { User, UserRole } from '../users/schemas/user.schema';
 import { Device } from '../devices/schemas/device.schema';
 import { Project } from '../projects/schemas/project.schema';
-import { AdminDeviceDto, AdminListDto, AdminProjectDto, UpdateAdminDto } from './admin.dto';
+import { AdminDeviceDto, AdminListDto, AdminProjectDto, OrderOfferDto, UpdateAdminDto } from './admin.dto';
 import { shippingLabel } from './shipping-label';
 import { SettingsService } from '../settings/settings.module';
 import { ProductSkuService } from '../products/product-sku.service';
 import { EmailEventsService } from '../email/email-events.module';
+import { NotificationsService } from '../notifications/notifications.module';
 
 @Injectable()
 export class AdminService {
@@ -28,6 +29,7 @@ export class AdminService {
     private readonly productSkuService: ProductSkuService,
     private readonly packaging: PackagingService,
     @Optional() private readonly emails?: EmailEventsService,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   private id(id: string) {
@@ -85,6 +87,31 @@ export class AdminService {
   productActive(id: string, active: boolean) { return this.update(this.products, id, { active }); }
   listOrders(query: AdminListDto) { return this.list(this.orders, query, ['status', 'items.name', 'items.sku'], 'customer', { status: { $in: [OrderStatus.PAID, OrderStatus.LABEL_ISSUED, OrderStatus.SHIPPED, OrderStatus.FULFILLED] } }); }
   listUnpaidOrders(query: AdminListDto) { return this.list(this.orders, query, ['items.name', 'items.sku'], 'customer', { status: OrderStatus.PENDING }); }
+  async sendOffer(id: string, dto: OrderOfferDto) {
+    const order = await this.order(id);
+    return this.sendOfferToOrder(order, dto);
+  }
+  async sendOfferToAll(dto: OrderOfferDto) {
+    const orders = await this.orders.find({ status: OrderStatus.PENDING }).populate('customer', 'name email').lean();
+    let sent = 0;
+    for (const order of orders) {
+      try { await this.sendOfferToOrder(order, dto); sent++; } catch (error) { if (!(error instanceof ConflictException)) throw error; }
+    }
+    return { sent, total: orders.length };
+  }
+  private async sendOfferToOrder(order: any, dto: OrderOfferDto) {
+    if (order.status !== OrderStatus.PENDING) throw new ConflictException('A oferta só pode ser enviada para compras não finalizadas.');
+    if (order.reservationExpiresAt && order.reservationExpiresAt <= new Date()) throw new ConflictException('A reserva deste pedido expirou.');
+    const customer = order.customer as any;
+    const gift = dto.gift?.trim();
+    if (!dto.discountPercent && !dto.freeShipping && !gift) throw new BadRequestException('Informe um desconto, frete grátis ou brinde.');
+    const offer = { discountPercent: dto.discountPercent || 0, freeShipping: dto.freeShipping === true, ...(gift ? { gift } : {}), sentAt: new Date() };
+    const result = await this.orders.findOneAndUpdate({ _id: order._id, status: OrderStatus.PENDING }, { $set: { offer } }, { new: true, runValidators: true }).populate('customer', 'name email').lean();
+    if (!result) throw new ConflictException('Pedido alterado. Atualize a lista.');
+    if (this.emails && customer?.email) void this.emails.publish({ type: 'order.offer', email: customer.email, name: customer.name || 'Cliente', orderId: String(order._id), total: order.total, discountPercent: offer.discountPercent, freeShipping: offer.freeShipping, gift: offer.gift });
+    if (this.notifications && customer?._id) void this.notifications.create(String(customer._id), { type: 'OFFER', title: 'Oferta especial disponível', message: `Você recebeu uma condição especial para o pedido #${String(order._id).slice(-8)}. Abra o pedido para conferir.`, link: `/pedidos/${order._id}` });
+    return { sent: true, offer: result.offer };
+  }
   async order(id: string) {
     const result = await this.orders.findById(this.id(id)).populate('customer', 'name email').lean();
     if (!result) throw new NotFoundException('Pedido não encontrado.');
@@ -120,9 +147,12 @@ export class AdminService {
   }
   private notifyOrder(order: any, type: 'order.paid' | 'order.shipped') {
     const customer = order.customer;
-    if (!this.emails || !customer?.email) return;
-    if (type === 'order.paid') void this.emails.publish({ type, email: customer.email, name: customer.name || 'Cliente', orderId: String(order._id), total: order.total });
-    else void this.emails.publish({ type, email: customer.email, name: customer.name || 'Cliente', orderId: String(order._id), trackingCode: order.trackingCode });
+    if (!customer?.email) return;
+    if (this.emails) {
+      if (type === 'order.paid') void this.emails.publish({ type, email: customer.email, name: customer.name || 'Cliente', orderId: String(order._id), total: order.total });
+      else void this.emails.publish({ type, email: customer.email, name: customer.name || 'Cliente', orderId: String(order._id), trackingCode: order.trackingCode });
+    }
+    if (this.notifications && customer?._id) void this.notifications.create(String(customer._id), { type: 'ORDER', title: type === 'order.paid' ? 'Pagamento confirmado' : 'Pedido enviado', message: type === 'order.paid' ? `O pagamento do pedido #${String(order._id).slice(-8)} foi confirmado.` : `O pedido #${String(order._id).slice(-8)} foi enviado.`, link: `/pedidos/${order._id}` });
   }
   async issueLabel(id: string) {
     const order = await this.order(id);

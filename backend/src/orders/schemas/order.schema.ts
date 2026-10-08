@@ -75,6 +75,17 @@ export class OrderShipping {
 }
 const OrderShippingSchema = SchemaFactory.createForClass(OrderShipping);
 
+@Schema({ _id: false })
+export class OrderOffer {
+  @Prop({ required: true, min: 0, max: 100 }) discountPercent!: number;
+  @Prop({ required: true, default: false }) freeShipping!: boolean;
+  @Prop({ type: String, maxlength: 200 }) gift?: string;
+  @Prop({ required: true }) sentAt!: Date;
+  @Prop({ type: Date }) viewedAt?: Date;
+  @Prop({ type: Date }) expiresAt?: Date;
+}
+const OrderOfferSchema = SchemaFactory.createForClass(OrderOffer);
+
 @Schema({ timestamps: true })
 export class Order {
   @Prop({ default: true }) requiresShipping?: boolean;
@@ -108,11 +119,26 @@ export class Order {
   @Prop({ type: String, enum: OrderStatus, default: OrderStatus.PENDING })
   status!: OrderStatus;
 
+  @Prop({ type: Date })
+  reservationExpiresAt?: Date;
+
+  @Prop({ type: Date })
+  stockReleasedAt?: Date;
+
+  @Prop({ type: Date })
+  paymentReminderSentAt?: Date;
+
+  @Prop({ type: Date })
+  paymentOpenedAt?: Date;
+
   @Prop({ required: true, min: 0 })
   total!: number;
 
   @Prop({ type: OrderShippingSchema })
   shipping?: OrderShipping;
+
+  @Prop({ type: OrderOfferSchema })
+  offer?: OrderOffer;
 
   @Prop({ type: [OrderItemSchema], required: true })
   items!: OrderItem[];

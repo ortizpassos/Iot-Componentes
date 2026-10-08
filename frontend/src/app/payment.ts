@@ -10,7 +10,7 @@ import { CheckoutProfile, CheckoutProfileForm } from './checkout-profile';
 
 interface PaymentView {
   checkoutProfile?: CheckoutProfile | null;
-  orderId: string; total: number; orderStatus: string; eligible: boolean; canPay: boolean;
+  orderId: string; total: number; originalTotal?: number; reservationExpiresAt?: string; offer?: { discountPercent: number; freeShipping: boolean; gift?: string; expiresAt?: string }; orderStatus: string; eligible: boolean; canPay: boolean;
   payment: { status: string; statusDetail?: string; method: string; providerId?: string; qrCode?: string; qrBase64?: string; expiresAt?: string; cardSaving?: 'saved' | 'failed' } | null;
 }
 interface SavedCard { customerId: string | null; card: { id: string; lastFour: string; brand: string } | null }
@@ -46,6 +46,7 @@ function loadSdk() {
       @else if (data.canPay && !data.checkoutProfile && !profileReady()) { <p class="notice">Complete e salve os dados de entrega acima para continuar.</p> }
       @else if (!enabled()) { <p class="notice">O pagamento está temporariamente indisponível. Seu pedido foi salvo; volte mais tarde para pagar.</p> }
       @else if (data.canPay) {
+        @if (reservationCountdown()) { <p class="notice" role="timer">Reserva do estoque válida por <strong>{{ reservationCountdown() }}</strong></p> }
         @if (data.payment) { <p class="notice">A tentativa anterior não foi concluída. Escolha uma forma de pagamento para tentar novamente.</p> }
         <div class="filters"><button [disabled]="busy()" [class.selected]="method() === 'pix'" (click)="choosePix()">Pix</button><button [disabled]="busy()" [class.selected]="method() === 'card'" (click)="chooseCard()">Cartão</button></div>
         @if (method() === 'pix') {
@@ -75,21 +76,22 @@ export class PaymentPage {
   changing = signal(false); changeError = signal('');
   profileReady = signal(false); savedCard = signal<SavedCard>({ customerId: null, card: null }); saveCard = false;
   private api = inject(Api); private session = inject(Session); private destroy = inject(DestroyRef); private cdr = inject(ChangeDetectorRef);
-  id = inject(ActivatedRoute).snapshot.paramMap.get('id') || ''; view = signal<PaymentView | null>(null);
+  id = inject(ActivatedRoute).snapshot.paramMap.get('id') || ''; view = signal<PaymentView | null>(null); reservationCountdown = signal('');
   loading = signal(true); enabled = signal(false); busy = signal(false); checking = signal(false); sdkBusy = signal(false); error = signal(''); method = signal<'pix' | 'card'>('pix'); copied = signal(false);
   email = this.session.user()?.email || ''; cpf = ''; private publicKey = ''; private brick?: Brick; private destroyed = false;
-  constructor() { this.load(); const timer = setInterval(() => { if (this.view()?.payment && !this.view()?.canPay && this.view()?.orderStatus === 'PENDING' && !this.busy() && !this.checking()) this.refresh(); }, 15000); this.destroy.onDestroy(() => { this.destroyed = true; clearInterval(timer); void this.brick?.unmount(); }); }
+  constructor() { this.load(); const timer = setInterval(() => { this.updateReservationCountdown(); if (this.view()?.payment && !this.view()?.canPay && this.view()?.orderStatus === 'PENDING' && !this.busy() && !this.checking()) this.refresh(); }, 1000); this.destroy.onDestroy(() => { this.destroyed = true; clearInterval(timer); void this.brick?.unmount(); }); }
   load() {
     this.loading.set(true); this.error.set('');
     forkJoin({ config: this.api.get<{ enabled: boolean; publicKey: string }>('payments/config'), payment: this.api.get<PaymentView>(`payments/${this.id}`), saved: this.api.get<SavedCard>('payments/saved-card') }).pipe(takeUntilDestroyed(this.destroy)).subscribe({
       next: data => {
-        this.enabled.set(data.config.enabled); this.publicKey = data.config.publicKey; this.view.set(data.payment); this.savedCard.set(data.saved);
+        this.enabled.set(data.config.enabled); this.publicKey = data.config.publicKey; this.view.set(data.payment); this.updateReservationCountdown(); this.savedCard.set(data.saved);
         this.cpf = data.payment.checkoutProfile?.cpf || ''; this.loading.set(false);
         if (data.saved.card && data.config.enabled && data.payment.canPay && data.payment.checkoutProfile) void this.chooseCard();
       }, error: e => { this.error.set(errorMessage(e)); this.loading.set(false); },
     });
   }
-  refresh() { if (this.checking()) return; this.checking.set(true); this.api.get<PaymentView>(`payments/${this.id}`).pipe(takeUntilDestroyed(this.destroy)).subscribe({ next: data => { this.view.set(data); this.checking.set(false); }, error: e => { this.error.set(errorMessage(e)); this.checking.set(false); } }); }
+  refresh() { if (this.checking()) return; this.checking.set(true); this.api.get<PaymentView>(`payments/${this.id}`).pipe(takeUntilDestroyed(this.destroy)).subscribe({ next: data => { this.view.set(data); this.updateReservationCountdown(); this.checking.set(false); }, error: e => { this.error.set(errorMessage(e)); this.checking.set(false); } }); }
+  private updateReservationCountdown() { const expiresAt = this.view()?.reservationExpiresAt; if (!expiresAt) { this.reservationCountdown.set(''); return; } const remaining = Math.max(0, Date.parse(expiresAt) - Date.now()); this.reservationCountdown.set(remaining ? `${Math.floor(remaining / 60_000)}:${String(Math.ceil((remaining % 60_000) / 1000)).padStart(2, '0')}` : 'Reserva expirada'); }
   async choosePix() { if (this.busy()) return; await this.brick?.unmount(); this.brick = undefined; this.method.set('pix'); }
   async chooseCard() {
     if (this.busy() || this.sdkBusy()) return;

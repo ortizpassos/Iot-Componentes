@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ProductsService } from '../products/products.service';
@@ -7,15 +7,28 @@ import { UsersService } from '../users/users.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Order, OrderDocument, OrderItem, OrderStatus, ProgrammingType } from './schemas/order.schema';
 import { ShippingService } from '../shipping/shipping.module';
+import { SettingsService } from '../settings/settings.module';
 
 @Injectable()
-export class OrdersService {
+export class OrdersService implements OnModuleInit, OnModuleDestroy {
+  private reservationTimer?: NodeJS.Timeout;
+
   constructor(
     @InjectModel(Order.name) private readonly orderModel: Model<OrderDocument>,
     private readonly productsService: ProductsService,
     private readonly usersService: UsersService,
     private readonly shippingService: ShippingService,
+    @Optional() private readonly settingsService?: SettingsService,
   ) {}
+
+  onModuleInit() {
+    this.reservationTimer = setInterval(() => void this.releaseExpiredReservations(), 60_000);
+    this.reservationTimer.unref();
+  }
+
+  onModuleDestroy() {
+    if (this.reservationTimer) clearInterval(this.reservationTimer);
+  }
 
   async create(customerId: string, dto: CreateOrderDto) {
     const checkoutProfile = await this.usersService.requireCheckoutProfile(customerId);
@@ -82,15 +95,46 @@ export class OrdersService {
       if (!Number.isSafeInteger(shippingCents) || !Number.isSafeInteger(totalCents)) throw new BadRequestException('Valor do frete fora do limite suportado.');
     }
 
-    return this.orderModel.create({
-      customer: new Types.ObjectId(customerId),
-      checkoutProfile,
-      requiresShipping: physicalItems.length > 0,
+    const global = this.settingsService ? (await this.settingsService.get()).globalOffer : undefined;
+    const globalActive = !!global?.enabled && (!global.expiresAt || new Date(global.expiresAt).getTime() > Date.now());
+    const offer = globalActive ? { discountPercent: global.discountPercent || 0, freeShipping: global.freeShipping === true, ...(global.gift ? { gift: global.gift } : {}), sentAt: new Date(), viewedAt: new Date(), expiresAt: global.expiresAt ? new Date(global.expiresAt) : new Date(Date.now() + 24 * 60 * 60_000) } : undefined;
+    const reserved: { productId: string; quantity: number }[] = [];
+    try {
+      for (const item of items) {
+        const product = await this.productsService.reserveStock(String(item.productId), item.quantity);
+        if (!product) throw new ConflictException(`A unidade de ${item.name} acabou de ser reservada por outro cliente.`);
+        reserved.push({ productId: String(item.productId), quantity: item.quantity });
+      }
+      return await this.orderModel.create({
+        customer: new Types.ObjectId(customerId),
+        checkoutProfile,
+        requiresShipping: physicalItems.length > 0,
+        status: OrderStatus.PENDING,
+        reservationExpiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        items,
+        ...(shipping ? { shipping } : {}),
+        ...(offer ? { offer } : {}),
+        total: totalCents / 100,
+      });
+    } catch (error) {
+      if (reserved.length) await this.productsService.releaseStock(reserved);
+      throw error;
+    }
+  }
+
+  async releaseExpiredReservations() {
+    const expired = await this.orderModel.find({
       status: OrderStatus.PENDING,
-      items,
-      ...(shipping ? { shipping } : {}),
-      total: totalCents / 100,
-    });
+      reservationExpiresAt: { $lte: new Date() },
+      stockReleasedAt: { $exists: false },
+    }).select('_id items').lean();
+    for (const order of expired) {
+      const result = await this.orderModel.updateOne(
+        { _id: order._id, status: OrderStatus.PENDING, stockReleasedAt: { $exists: false } },
+        { $set: { status: OrderStatus.CANCELLED, stockReleasedAt: new Date() } },
+      );
+      if (result.modifiedCount) await this.productsService.releaseStock(order.items.map(item => ({ productId: String(item.productId), quantity: item.quantity })));
+    }
   }
 
   findAll(customerId: string) {
@@ -99,7 +143,14 @@ export class OrdersService {
 
   async findOne(customerId: string, id: string) {
     if (!Types.ObjectId.isValid(id)) throw new BadRequestException('ID de pedido inválido.');
-    const order = await this.orderModel.findOne({ _id: id, customer: customerId }).lean();
+    const now = new Date();
+    const offerExpiresAt = new Date(now.getTime() + 24 * 60 * 60_000);
+    const viewed = await this.orderModel.findOneAndUpdate(
+      { _id: id, customer: customerId, status: OrderStatus.PENDING, 'offer.expiresAt': { $exists: false }, 'offer.sentAt': { $exists: true } },
+      { $set: { 'offer.viewedAt': now, 'offer.expiresAt': offerExpiresAt } },
+      { new: true },
+    ).lean();
+    const order = viewed || await this.orderModel.findOne({ _id: id, customer: customerId }).lean();
     if (!order) throw new NotFoundException('Pedido não encontrado.');
     return order;
   }

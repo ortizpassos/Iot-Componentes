@@ -40,4 +40,19 @@ export class ProductsService {
     if (!product) throw new NotFoundException('Produto não encontrado.');
     return product;
   }
+
+  reserveStock(id: string, quantity: number) {
+    return this.productModel.findOneAndUpdate(
+      { _id: id, active: true, stock: { $gte: quantity } },
+      { $inc: { stock: -quantity } },
+      { new: true, runValidators: true },
+    ).lean();
+  }
+
+  releaseStock(items: { productId: string; quantity: number }[]) {
+    return Promise.all(items.map(item => this.productModel.updateOne(
+      { _id: item.productId },
+      { $inc: { stock: item.quantity } },
+    )));
+  }
 }

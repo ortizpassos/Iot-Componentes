@@ -17,6 +17,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { ProductDatasheetsModule } from './product-images/product-datasheets.module';
 import { ShippingModule } from './shipping/shipping.module';
 import { EmailEventsModule } from './email/email-events.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { EmailEventsModule } from './email/email-events.module';
     }),
     CartsModule,
     EmailEventsModule,
+    NotificationsModule,
     AuthModule,
     UsersModule,
     DevicesModule,

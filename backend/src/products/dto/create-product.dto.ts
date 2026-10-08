@@ -19,6 +19,15 @@ export class ProductProgrammingDto {
   @IsString()
   chip?: string;
 }
+export class ProductOfferDto {
+  @IsOptional() @IsBoolean() enabled?: boolean;
+  @IsOptional() @IsString() @MaxLength(120) title?: string;
+  @IsOptional() @IsString() @MaxLength(500) description?: string;
+  @IsOptional() @IsNumber() @Min(0) @Max(100) discountPercent?: number;
+  @IsOptional() @IsBoolean() freeShipping?: boolean;
+  @IsOptional() @IsString() @MaxLength(200) gift?: string;
+  @IsOptional() @IsString() @MaxLength(40) expiresAt?: string;
+}
 
 export class ProductReferenceDto {
   @IsString() @IsNotEmpty() @MaxLength(100)
@@ -115,4 +124,7 @@ export class CreateProductDto {
   @ValidateNested()
   @Type(() => ProductProgrammingDto)
   programming?: ProductProgrammingDto;
+
+  @IsOptional() @IsObject() @ValidateNested() @Type(() => ProductOfferDto)
+  offer?: ProductOfferDto;
 }

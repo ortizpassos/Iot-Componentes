@@ -9,10 +9,17 @@ import { MercadoPagoService, ProviderError, ProviderPayment } from './mercado-pa
 import { UsersService } from '../users/users.service';
 import { ProductsService } from '../products/products.service';
 import { EmailEventsService } from '../email/email-events.module';
+import { NotificationsService } from '../notifications/notifications.module';
 
 export const RETRYABLE = ['rejected', 'cancelled', 'failed'];
+export function payableTotal(order: Pick<Order, 'total' | 'shipping' | 'offer'>) {
+  const offer = order.offer?.expiresAt && order.offer.expiresAt > new Date() ? order.offer : undefined;
+  const discount = order.total * ((offer?.discountPercent || 0) / 100);
+  const shipping = offer?.freeShipping ? (order.shipping?.price || 0) : 0;
+  return Math.max(0, Math.round((order.total - discount - shipping + Number.EPSILON) * 100) / 100);
+}
 export function eligible(order: Order) {
-  return order.status === OrderStatus.PENDING && order.total > 0 && order.items.length > 0 && order.items.every(i => !i.programmingRequest.requested && i.programmingRequest.type === 'NONE');
+  return order.status === OrderStatus.PENDING && (!order.reservationExpiresAt || order.reservationExpiresAt > new Date()) && payableTotal(order) > 0 && order.items.length > 0 && order.items.every(i => !i.programmingRequest.requested && i.programmingRequest.type === 'NONE');
 }
 export function verifySignature(secret: string, id: string, requestId: string, signature: string) {
   const parts = Object.fromEntries(signature.split(',').map(part => part.trim().split('=')));
@@ -23,7 +30,7 @@ export function verifySignature(secret: string, id: string, requestId: string, s
 }
 @Injectable()
 export class PaymentsService {
-  constructor(@InjectModel(Order.name) private readonly orders: Model<Order>, private readonly provider: MercadoPagoService, private readonly config: ConfigService, private readonly users: UsersService, private readonly products: ProductsService, @Optional() private readonly emails?: EmailEventsService) {}
+  constructor(@InjectModel(Order.name) private readonly orders: Model<Order>, private readonly provider: MercadoPagoService, private readonly config: ConfigService, private readonly users: UsersService, private readonly products: ProductsService, @Optional() private readonly emails?: EmailEventsService, @Optional() private readonly notifications?: NotificationsService) {}
   async savedCard(customer: string) {
     const user = await this.users.checkout(customer);
     return user.defaultCard && user.mercadoPagoCustomerId
@@ -39,12 +46,18 @@ export class PaymentsService {
   }
   private view(order: Order & { _id: Types.ObjectId }) {
     const p = order.payment;
-    return { orderId: String(order._id), total: order.total, orderStatus: order.status, eligible: eligible(order), checkoutProfile: order.checkoutProfile || null,
+    return { orderId: String(order._id), total: payableTotal(order), originalTotal: order.total, offer: order.offer || null, reservationExpiresAt: order.reservationExpiresAt, orderStatus: order.status, eligible: eligible(order), checkoutProfile: order.checkoutProfile || null,
       canPay: eligible(order) && (!p || RETRYABLE.includes(p.status)),
       payment: p ? { status: p.status, statusDetail: p.statusDetail, method: p.method, providerId: p.providerId, qrCode: p.status === 'pending' ? p.qrCode : undefined, qrBase64: p.status === 'pending' ? p.qrBase64 : undefined, expiresAt: p.expiresAt, cardSaving: p.cardSaving } : null };
   }
   async status(customer: string, id: string) {
     let order = await this.owned(customer, id);
+    if (order.status === OrderStatus.PENDING && order.reservationExpiresAt && !order.paymentOpenedAt) {
+      const now = new Date();
+      if (order.reservationExpiresAt && order.reservationExpiresAt <= now) return this.view(order);
+      const opened = await this.orders.findOneAndUpdate({ _id: id, customer, status: OrderStatus.PENDING, paymentOpenedAt: { $exists: false } }, { $set: { paymentOpenedAt: now, reservationExpiresAt: new Date(now.getTime() + 5 * 60_000) } }, { new: true }).select('+payment').lean();
+      if (opened) order = opened;
+    }
     if (order.payment && order.payment.status !== 'failed') {
       try {
         const payments = order.payment.providerId ? [await this.provider.get(order.payment.providerId)] : await this.provider.search(`${id}:${order.payment.key}`);
@@ -58,10 +71,11 @@ export class PaymentsService {
     if (!this.provider.configuration().enabled) throw new ServiceUnavailableException('Pagamento ainda não configurado pela loja.');
     const order = await this.owned(customer, id);
     if (!eligible(order)) throw new ConflictException('Este pedido não está disponível para pagamento online.');
+    if (!order.reservationExpiresAt || order.reservationExpiresAt <= new Date()) throw new ConflictException('O prazo de reserva do pedido terminou. Volte ao carrinho para tentar novamente.');
     if (order.payment && !RETRYABLE.includes(order.payment.status)) return this.status(customer, id);
     for (const item of order.items) {
       const product = await this.products.findById(String(item.productId));
-      if (!product.active || !Number.isInteger(product.stock) || !Number.isInteger(item.quantity) || item.quantity > product.stock || item.quantity < 1) throw new ConflictException(`Estoque insuficiente para ${item.name || product.name}. Revise o pedido antes de pagar.`);
+      if (!product.active || !Number.isInteger(item.quantity) || item.quantity < 1) throw new ConflictException(`Produto indisponível para pagamento: ${item.name || product.name}.`);
     }
     const checkoutProfile = order.checkoutProfile || await this.users.requireCheckoutProfile(customer);
     if (dto.method !== 'card' && (dto.saveCard || dto.useSavedCard)) throw new BadRequestException('Esta opção está disponível somente para cartão.');
@@ -76,7 +90,7 @@ export class PaymentsService {
     if (!claimed) return this.status(customer, id);
     const notificationUrl = this.config.get<string>('MP_NOTIFICATION_URL');
     const body = {
-      transaction_amount: order.total, description: `IOT-Componentes - Pedido ${id}`,
+      transaction_amount: payableTotal(order), description: `IOT-Componentes - Pedido ${id}`,
       ...(dto.method === 'card' ? { statement_descriptor: 'IOT-COMPONENT' } : {}),
       external_reference: `${id}:${key}`, payer: saved ? { ...dto.payer, type: 'customer', id: saved.customerId } : dto.payer,
       ...(notificationUrl ? { notification_url: notificationUrl } : {}),
@@ -133,7 +147,7 @@ export class PaymentsService {
     const order = await this.orders.findOne({ _id: id, 'payment.key': key }).select('+payment').lean();
     if (!order?.payment) return;
     if (order.payment.status === 'cancelled' && ['pending', 'in_process', 'authorized'].includes(payment.status)) return;
-    if (payment.currency_id !== 'BRL' || Math.round(payment.transaction_amount * 100) !== Math.round(order.total * 100)) throw new ConflictException('Pagamento não corresponde ao valor do pedido.');
+    if (payment.currency_id !== 'BRL' || Math.round(payment.transaction_amount * 100) !== Math.round(payableTotal(order) * 100)) throw new ConflictException('Pagamento não corresponde ao valor do pedido.');
     if (order.payment.providerId && order.payment.providerId !== String(payment.id)) throw new ConflictException('Pagamento divergente.');
     const updatedAt = new Date(payment.date_last_updated || Date.now()).toISOString();
     const update: Record<string, unknown> = {
@@ -155,6 +169,7 @@ export class PaymentsService {
         void this.emails.publish({ type: 'order.paid', email: customer.email, name: customer.name, orderId: id, total: order.total });
       } catch { /* Email notification cannot change the confirmed payment result. */ }
     }
+    if (result?.modifiedCount && update.status === OrderStatus.PAID && this.notifications) void this.notifications.create(String(order.customer), { type: 'ORDER', title: 'Pagamento confirmado', message: `O pagamento do pedido #${id.slice(-8)} foi confirmado.`, link: `/pedidos/${id}` });
   }
   async webhook(id: string, requestId: string, signature: string) {
     if (!verifySignature(this.config.get<string>('MP_WEBHOOK_SECRET') || '', id || '', requestId || '', signature || '')) throw new UnauthorizedException('Assinatura inválida.');

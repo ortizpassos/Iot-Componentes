@@ -16,11 +16,12 @@ function fixture() {
   const saved = [];
   const service = new OrdersService({
     create: async value => { saved.push(value); return value; },
+    findOneAndUpdate: filter => ({ lean: async () => filter.customer === customer ? saved[0] : null }),
     findOne: filter => ({ lean: async () => filter.customer === customer ? saved[0] : null }),
     find: filter => { assert.deepEqual(filter, { customer }); return { sort: sort => {
       assert.deepEqual(sort, { createdAt: -1 }); return { lean: async () => saved };
     } }; },
-  }, { findById: async () => product }, { requireCheckoutProfile: async () => ({ fullName: 'Cliente Teste', cpf: '52998224725', address: { street: 'Rua Teste', number: '10', zipCode: '01001000', neighborhood: 'Centro', city: 'São Paulo', state: 'SP' } }) });
+  }, { findById: async () => product, reserveStock: async () => product, releaseStock: async () => [] }, { requireCheckoutProfile: async () => ({ fullName: 'Cliente Teste', cpf: '52998224725', address: { street: 'Rua Teste', number: '10', zipCode: '01001000', neighborhood: 'Centro', city: 'São Paulo', state: 'SP' } }) });
   return { service, product, saved };
 }
 
@@ -30,6 +31,7 @@ test('snapshot and totals survive catalog changes', async () => {
   const order = await service.create(customer, body());
   assert.equal(order.total, 269.7);
   assert.equal(order.status, 'PENDING');
+  assert.ok(order.reservationExpiresAt > new Date());
   assert.equal(order.checkoutProfile.address.street, 'Rua Teste');
   assert.equal(String(order.customer), customer);
   assert.deepEqual(order.items[0].programmingRequest, { requested: false, type: 'NONE' });

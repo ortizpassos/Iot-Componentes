@@ -19,13 +19,24 @@ export class CartItemDto {
 export class SaveCartDto {
   @IsArray() @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => CartItemDto) items!: CartItemDto[];
 }
+@Schema({ _id: false })
+export class SavedCartItem {
+  @Prop({ required: true }) productId!: string;
+  @Prop({ required: true, min: 1, max: 10000 }) quantity!: number;
+  @Prop({ required: true, enum: ProgrammingType }) type!: ProgrammingType;
+  @Prop({ default: '', maxlength: 10000 }) requirements!: string;
+  @Prop({ required: true }) name!: string;
+  @Prop({ required: true, min: 0 }) price!: number;
+}
+const SavedCartItemSchema = SchemaFactory.createForClass(SavedCartItem);
 @Schema({ timestamps: true })
 export class SavedCart {
   @Prop({ type: Types.ObjectId, ref: User.name, required: true, unique: true }) customer!: Types.ObjectId;
-  @Prop({ type: [{ _id: false, productId: String, quantity: Number, type: String, requirements: String, name: String, price: Number }], default: [] }) items!: (CartItemDto & { name: string; price: number })[];
+  @Prop({ type: [SavedCartItemSchema], default: [] }) items!: (CartItemDto & { name: string; price: number })[];
   @Prop({ required: true }) lastActivityAt!: Date;
+  @Prop({ type: Date }) reminderSentAt?: Date;
 }
-const SavedCartSchema = SchemaFactory.createForClass(SavedCart);
+export const SavedCartSchema = SchemaFactory.createForClass(SavedCart);
 SavedCartSchema.index({ lastActivityAt: 1 });
 @Injectable()
 export class CartsService {
@@ -49,7 +60,23 @@ export class CartsService {
       if (!product || product.stock < item.quantity) throw new BadRequestException('Produto indisponível ou estoque insuficiente. Atualize o carrinho.');
       return { productId: String(product._id), quantity: item.quantity, type: product.programming?.supported ? item.type : ProgrammingType.NONE, requirements: product.programming?.supported ? item.requirements : '', name: product.name, price: product.price };
     });
-    await this.carts.findOneAndUpdate({ customer }, { $set: { items, lastActivityAt: new Date() } }, { upsert: true, runValidators: true });
+    const update = { $set: { items, lastActivityAt: new Date() } };
+    try {
+      await this.carts.updateOne({ customer }, update, { upsert: true, runValidators: true });
+    } catch (error) {
+      // Two browser writes can reach the API before the first upsert finishes.
+      // The unique customer index keeps one cart; retry the losing write as an update.
+      if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 11000) throw error;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const result = await this.carts.updateOne({ customer }, update, { runValidators: true });
+          if (result.matchedCount) return { saved: true };
+        } catch (retryError) {
+          if (!retryError || typeof retryError !== 'object' || !('code' in retryError) || retryError.code !== 11000) throw retryError;
+        }
+      }
+      throw error;
+    }
     return { saved: true };
   }
   async abandoned(query: AdminListDto) {

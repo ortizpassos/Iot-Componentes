@@ -38,3 +38,13 @@ export class AdminProjectDto extends CreateProjectDto {
 }
 
 export class ShipmentDto { @IsString() @Matches(/^[A-Za-z0-9][A-Za-z0-9-]{4,59}$/) trackingCode!: string; }
+export class OrderOfferDto {
+  @IsOptional() @IsInt() @Min(0) @Max(100)
+  discountPercent: number = 0;
+
+  @IsOptional() @IsBoolean()
+  freeShipping: boolean = false;
+
+  @IsOptional() @IsString() @MaxLength(200)
+  gift?: string;
+}

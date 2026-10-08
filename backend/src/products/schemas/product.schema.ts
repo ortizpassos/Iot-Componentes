@@ -21,6 +21,18 @@ export enum ProductType {
   SMART_HOME = 'SMART_HOME',
 }
 
+@Schema({ _id: false })
+export class ProductOffer {
+  @Prop({ default: false }) enabled!: boolean;
+  @Prop({ default: '' }) title!: string;
+  @Prop({ default: '' }) description!: string;
+  @Prop({ min: 0, max: 100, default: 0 }) discountPercent!: number;
+  @Prop({ default: false }) freeShipping!: boolean;
+  @Prop({ maxlength: 200 }) gift?: string;
+  @Prop({ type: Date }) expiresAt?: Date;
+}
+const ProductOfferSchema = SchemaFactory.createForClass(ProductOffer);
+
 @Schema({ timestamps: true })
 export class Product {
   @Prop({ type: String, index: true }) storeProjectId?: string;
@@ -87,6 +99,9 @@ export class Product {
 
   @Prop({ type: Object, default: {} })
   programming!: { supported?: boolean; platform?: string; chip?: string };
+
+  @Prop({ type: ProductOfferSchema })
+  offer?: ProductOffer;
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

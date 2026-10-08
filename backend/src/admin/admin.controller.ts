@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { AuthenticatedUser, CurrentUser } from '../common/decorators/current-user.decorator';
 import { CreateProductDto } from '../products/dto/create-product.dto';
-import { ShipmentDto, ActiveDto, AdminDeviceDto, AdminListDto, AdminProjectDto, OrderStatusDto, UpdateAdminDto } from './admin.dto';
+import { ShipmentDto, ActiveDto, AdminDeviceDto, AdminListDto, AdminProjectDto, OrderOfferDto, OrderStatusDto, UpdateAdminDto } from './admin.dto';
 import { AdminService } from './admin.service';
 
 @Controller('admin')
@@ -20,6 +20,8 @@ export class AdminController {
   @Patch('products/:id/active') productActive(@Param('id') id: string, @Body() dto: ActiveDto) { return this.admin.productActive(id, dto.active); }
   @Get('orders') orders(@Query() query: AdminListDto) { return this.admin.listOrders(query); }
   @Get('orders/unpaid') unpaidOrders(@Query() query: AdminListDto) { return this.admin.listUnpaidOrders(query); }
+  @Post('orders/unpaid/offer') offerAll(@Body() dto: OrderOfferDto) { return this.admin.sendOfferToAll(dto); }
+  @Post('orders/:id/offer') offer(@Param('id') id: string, @Body() dto: OrderOfferDto) { return this.admin.sendOffer(id, dto); }
   @Get('orders/:id') order(@Param('id') id: string) { return this.admin.order(id); }
   @Post('orders/:id/retry-print') retryPrint(@Param('id') id: string) { return this.admin.retryPrint(id); }
   @Post('orders/:id/ship') ship(@Param('id') id: string, @Body() dto: ShipmentDto) { return this.admin.shipOrder(id, dto.trackingCode); }

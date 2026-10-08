@@ -2,7 +2,7 @@ import { Body, Controller, Get, Injectable, Module, Put, UseGuards } from '@nest
 import { InjectModel, MongooseModule, Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Transform, Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
 import { IsProductImageUrl } from '../products/image-url.validator';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -15,7 +15,17 @@ export const defaults = {
   bannerDescription: 'Escolha sua placa e solicite a programação que o seu projeto precisa.',
   announcement: '', contactEmail: '',
   bannerSlides: [] as BannerSlideDto[], bannerInterval: 6,
+  globalOffer: { enabled: false, title: '', description: '', discountPercent: 0, freeShipping: false, gift: '', expiresAt: '' },
 };
+export class GlobalOfferDto {
+  @IsOptional() @IsBoolean() enabled?: boolean;
+  @IsOptional() @IsString() @MaxLength(120) title?: string;
+  @IsOptional() @IsString() @MaxLength(500) description?: string;
+  @IsOptional() @IsNumber() @Min(0) @Max(100) discountPercent?: number;
+  @IsOptional() @IsBoolean() freeShipping?: boolean;
+  @IsOptional() @IsString() @MaxLength(200) gift?: string;
+  @IsOptional() @IsString() @MaxLength(40) expiresAt?: string;
+}
 export class BannerSlideDto {
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString() @IsNotEmpty() @MaxLength(120) title!: string;
@@ -35,6 +45,7 @@ export class StoreSettingsDto {
   @IsString() @MaxLength(120) bannerTitle!: string;
   @IsString() @MaxLength(500) bannerDescription!: string;
   @IsString() @MaxLength(500) announcement!: string;
+  @IsOptional() @ValidateNested() @Type(() => GlobalOfferDto) globalOffer?: GlobalOfferDto;
   @IsString() @MaxLength(254) @ValidateIf((o) => o.contactEmail !== '') @IsEmail() contactEmail!: string;
 }
 @Schema({ timestamps: true })

@@ -1,11 +1,9 @@
-import { AdminUnpaidOrders } from './admin-unpaid-orders';
 import { Component, inject, output, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Api, errorMessage } from './core';
 interface AbandonedCart { _id: string; customer?: { name: string; email: string }; lastActivityAt: string; total: number; items: { productId: string; name: string; quantity: number; price: number }[] }
-@Component({ selector: 'app-admin-abandoned-carts', imports: [AdminUnpaidOrders, CurrencyPipe, DatePipe], styleUrl: './admin.css', template: `
-<app-admin-unpaid-orders (changed)="changed.emit()" />
-<section class="panel"><h2>Carrinhos ainda não finalizados</h2><p>Carrinhos de clientes identificados sem alterações há pelo menos 30 minutos. Valores estimados dos produtos, sem frete. Pedidos registrados sem pagamento aparecem na seção acima.</p><button [disabled]="loading()" (click)="load()">Atualizar carrinhos</button></section>
+@Component({ selector: 'app-admin-abandoned-carts', imports: [CurrencyPipe, DatePipe], styleUrl: './admin.css', template: `
+<section class="panel"><h2>Carrinhos abandonados</h2><p>Carrinhos de clientes identificados sem alterações há pelo menos 30 minutos. Valores estimados dos produtos, sem frete. Compras registradas sem pagamento ficam na aba própria.</p><button [disabled]="loading()" (click)="load()">Atualizar carrinhos</button></section>
 @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
 @if (loading()) { <p role="status">Carregando carrinhos...</p> }
 @for (cart of items(); track cart._id) { <section class="panel"><h3>{{ cart.customer?.name || 'Conta indisponível' }}</h3><p style="overflow-wrap:anywhere">{{ cart.customer?.email }}</p><p>Última atividade: {{ cart.lastActivityAt | date:'dd/MM/yyyy HH:mm' }}</p>
