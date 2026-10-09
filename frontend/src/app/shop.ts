@@ -71,14 +71,10 @@ export class CatalogPage {
       <label>Quantidade<input type="number" [name]="'qty-' + line.product._id" [ngModel]="line.quantity" (ngModelChange)="cart.setQuantity(line.product._id, $event)" required min="1" [max]="line.product.stock" step="1" [disabled]="busy()"></label>
       <p class="muted">Disponível: {{ line.product.stock }} unidade(s).</p>
       @if (line.quantity > line.product.stock) { <p class="error" role="alert">A quantidade excede o estoque disponível.</p> }
-      @if (line.product.programming?.supported) {
-        <label>Programação<select [name]="'type-' + line.product._id" [ngModel]="line.type" (ngModelChange)="cart.updateProgramming(line.product._id, { type: $event })" [disabled]="busy()"><option value="NONE">Sem programação</option><option value="STANDARD">Padrão</option><option value="AI">Com inteligência artificial</option><option value="CUSTOM">Personalizada</option></select></label>
-        @if (line.type !== 'NONE') { <label>O que o dispositivo deve fazer?<textarea [name]="'req-' + line.product._id" [ngModel]="line.requirements" (ngModelChange)="cart.updateProgramming(line.product._id, { requirements: $event })" [required]="line.type === 'AI' || line.type === 'CUSTOM'" maxlength="10000" [disabled]="busy()" placeholder="Descreva sensores, ações e comportamento esperado."></textarea></label> }
-      }
     </section> }
     </div><section class="panel summary"><h2>Resumo do pedido</h2><div class="row"><span>Produtos (estimativa)</span><strong>{{ total() | currency:'BRL' }}</strong></div>
       @if (profileReady() && requiresShipping()) { <div class="shipping-quote"><div class="row"><h3>Frete</h3><button type="button" class="text-button" [disabled]="shippingBusy()" (click)="recalculateShipping()">{{ shippingBusy() ? 'Consultando…' : 'Recalcular' }}</button></div>@if (shippingError()) { <p class="error" role="alert">{{ shippingError() }}</p> } @if (shippingQuote(); as quote) { @for (service of quote.services; track service.code) { <label class="shipping-option"><span><input type="radio" name="shippingService" [checked]="selectedShippingCode() === service.code" (change)="selectShipping(service.code)"> {{ service.name }}{{ service.deliveryDays ? ' · até ' + service.deliveryDays + ' dias úteis' : '' }}</span><strong>{{ service.price | currency:'BRL' }}</strong></label> } } @else if (!shippingBusy() && !shippingError()) { <p class="muted">Informe o CEP para consultar as modalidades de envio.</p> }</div> }
-      @if (shippingPrice() !== null) { <div class="row"><span>Frete selecionado</span><strong>{{ shippingPrice() | currency:'BRL' }}</strong></div> }<div class="row total"><span>Total estimado</span><strong>{{ grandTotal() | currency:'BRL' }}</strong></div><p class="muted">O frete exibido é uma estimativa da modalidade selecionada.</p><p class="notice">{{ hasProgramming() ? 'A programação será analisada separadamente. Este pedido ficará pendente de atendimento.' : 'Após registrar o pedido, escolha Pix ou cartão na página de pagamento.' }}</p><button class="primary full" [disabled]="busy() || form.invalid">{{ busy() ? 'Registrando…' : session.token() ? (directPurchase && !hasProgramming() ? 'Ir para pagamento →' : 'Registrar pedido →') : 'Entrar para continuar →' }}</button><a class="back-link" routerLink="/catalogo">Continuar explorando</a></section>
+      @if (hasOffer() && itemDiscountTotal()) { <div class="row"><span>Descontos da oferta</span><strong class="offer-saving">-{{ itemDiscountTotal() | currency:'BRL' }}</strong></div> }@if (hasOffer() && globalDiscount()) { <div class="row"><span>Desconto da oferta global</span><strong class="offer-saving">-{{ globalDiscount() | currency:'BRL' }}</strong></div> }@if (shippingPrice() !== null) { <div class="row"><span>Frete selecionado</span><strong>@if (hasOffer() && offerFreeShipping()) { <del>{{ shippingPrice() | currency:'BRL' }}</del> Grátis } @else { {{ shippingPrice() | currency:'BRL' }} }</strong></div> }@if (hasOffer()) { <div class="row total"><span>Total original</span><strong><del>{{ originalGrandTotal() | currency:'BRL' }}</del></strong></div><div class="row total"><span>Total com a oferta</span><strong>{{ offerGrandTotal() | currency:'BRL' }}</strong></div> } @else { <div class="row total"><span>Total estimado</span><strong>{{ grandTotal() | currency:'BRL' }}</strong></div> }<p class="muted">O frete exibido é uma estimativa da modalidade selecionada.</p><p class="notice">Após registrar o pedido, escolha Pix ou cartão na página de pagamento.</p><button class="primary full" [disabled]="busy() || form.invalid">{{ busy() ? 'Registrando…' : session.token() ? 'Ir para pagamento →' : 'Entrar para continuar →' }}</button><a class="back-link" routerLink="/catalogo">Continuar explorando</a></section>
   </form> }
 `, styles: `.shipping-quote{margin:20px 0}.shipping-quote h3{margin:0}.shipping-quote .row{margin:8px 0}.shipping-option{display:flex;justify-content:space-between;gap:12px;margin:8px 0}.shipping-option input{width:auto}` })
 export class CartPage {
@@ -90,6 +86,7 @@ export class CartPage {
   cart = this.directPurchase ? new Cart() : inject(Cart);
   loading = signal(false);
   session = inject(Session); private api = inject(Api); private router = inject(Router); busy = signal(false); error = signal('');
+  store = inject(StoreConfig);
   constructor() {
     if (this.directPurchase) {
       this.loading.set(true);
@@ -107,7 +104,14 @@ export class CartPage {
   total() { return this.cart.lines().reduce((sum, l) => sum + Math.round(l.product.price * 100) * (l.quantity || 0), 0) / 100; }
   shippingPrice() { const quote = this.shippingQuote(); const selected = quote?.services.find(service => service.code === this.selectedShippingCode()) || quote?.services.slice().sort((a, b) => a.price - b.price)[0]; return selected?.price ?? null; }
   grandTotal() { return this.total() + (this.shippingPrice() || 0); }
-  hasProgramming() { return this.cart.lines().some(line => line.type !== 'NONE'); }
+  activeOffer(product: Product) { const global = this.store.value().globalOffer; const productActive = !!product.offer?.enabled && (!product.offer.expiresAt || new Date(product.offer.expiresAt).getTime() > Date.now()); if (productActive) return product.offer; return !!global?.enabled && (!global.expiresAt || new Date(global.expiresAt).getTime() > Date.now()) ? global : undefined; }
+  hasOffer() { return this.cart.lines().some(line => !!this.activeOffer(line.product)); }
+  itemDiscountTotal() { return this.cart.lines().reduce((sum, line) => { const offer = line.product.offer; const active = !!offer?.enabled && (!offer.expiresAt || new Date(offer.expiresAt).getTime() > Date.now()); return sum + (active ? line.quantity * line.product.price * ((offer.discountPercent || 0) / 100) : 0); }, 0); }
+  globalDiscount() { const offer = this.store.value().globalOffer; const active = !!offer?.enabled && offer.discountEnabled !== false && (!offer.expiresAt || new Date(offer.expiresAt).getTime() > Date.now()); return active ? (this.total() - this.itemDiscountTotal()) * ((offer.discountPercent || 0) / 100) : 0; }
+  offerFreeShipping() { const global = this.store.value().globalOffer; const globalActive = !!global?.enabled && (!global.expiresAt || new Date(global.expiresAt).getTime() > Date.now()); const globalQualified = globalActive && !!global.freeShipping && (!global.freeShippingMinimum || this.total() >= global.freeShippingMinimum); return globalQualified || this.cart.lines().some(line => { const offer = line.product.offer; return !!offer?.enabled && (!offer.expiresAt || new Date(offer.expiresAt).getTime() > Date.now()) && !!offer.freeShipping; }); }
+  originalGrandTotal() { return this.grandTotal(); }
+  offerGrandTotal() { return Math.max(0, this.total() - this.itemDiscountTotal() - this.globalDiscount() + (this.offerFreeShipping() ? 0 : this.shippingPrice() || 0)); }
+  hasProgramming() { return false; }
   selectShipping(code: string) { this.selectedShippingCode.set(code); }
   onProfileReady(profile: CheckoutProfile | null) {
     this.profileReady.set(!!profile); this.shippingQuote.set(null); this.selectedShippingCode.set(''); this.shippingError.set('');
@@ -127,10 +131,10 @@ export class CartPage {
     if (this.busy() || form.invalid) return;
     if (!this.session.token()) { void this.router.navigate(['/login'], { queryParams: { returnUrl: this.router.url } }); return; }
     if (!this.profileReady()) { this.error.set('Preencha e salve os dados de entrega antes de registrar o pedido.'); return; }
-    if (this.cart.lines().some(l => (!Number.isInteger(l.quantity) || l.quantity < 1 || l.quantity > l.product.stock) || ((l.type === 'AI' || l.type === 'CUSTOM') && !l.requirements.trim()))) { this.error.set('Use quantidades inteiras e preencha os requisitos de programação.'); return; }
+    if (this.cart.lines().some(l => !Number.isInteger(l.quantity) || l.quantity < 1 || l.quantity > l.product.stock)) { this.error.set('Use quantidades inteiras dentro do estoque disponível.'); return; }
     this.busy.set(true); this.error.set('');
     if (this.requiresShipping() && (this.shippingPrice() === null || !this.selectedShippingCode())) { this.error.set('Calcule e selecione uma modalidade de frete antes de registrar o pedido.'); this.busy.set(false); return; }
-    const items = this.cart.lines().map(l => ({ productId: l.product._id, quantity: l.quantity, programmingRequest: { requested: l.type !== 'NONE', type: l.type, ...(l.type !== 'NONE' && l.requirements.trim() ? { requirements: l.requirements.trim() } : {}) } }));
+    const items = this.cart.lines().map(l => ({ productId: l.product._id, quantity: l.quantity, programmingRequest: { requested: false, type: 'NONE' as const } }));
     this.api.post<Order>('orders', { items, ...(this.requiresShipping() ? { shippingServiceId: this.selectedShippingCode() } : {}) }).subscribe({ next: order => { this.cart.clear(); void this.router.navigate([order.items.every(item => !item.programmingRequest.requested && item.programmingRequest.type === 'NONE') ? '/pagamento' : '/pedidos', order._id]); }, error: e => { this.error.set(errorMessage(e)); this.busy.set(false); } });
   }
 }

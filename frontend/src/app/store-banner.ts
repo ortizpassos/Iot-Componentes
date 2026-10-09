@@ -53,7 +53,7 @@ export class StoreBanner {
     const slides: BannerSlide[] = value.bannerSlides?.length ? [...value.bannerSlides] : [{ title: value.bannerTitle, description: value.bannerDescription, imageUrl: '' }];
     if (value.announcement.trim()) slides.unshift({ title: 'Aviso aos clientes', description: value.announcement, imageUrl: '' });
     const offer = value.globalOffer;
-    if (offer?.enabled && (!offer.expiresAt || new Date(offer.expiresAt).getTime() > Date.now())) slides.unshift({ title: offer.title || 'Oferta especial', description: [offer.description, offer.discountPercent ? `Desconto de ${offer.discountPercent}%` : '', offer.freeShipping ? 'Frete grátis' : '', offer.gift ? `Brinde: ${offer.gift}` : ''].filter(Boolean).join(' · '), imageUrl: '' });
+    if (offer?.enabled && (!offer.expiresAt || new Date(offer.expiresAt).getTime() > Date.now())) slides.unshift({ title: offer.title || 'Oferta especial', description: [offer.description, offer.discountEnabled !== false && offer.discountPercent ? `Desconto de ${offer.discountPercent}%` : '', offer.freeShipping ? (offer.freeShippingMinimum ? `Frete grátis acima de R$ ${offer.freeShippingMinimum.toFixed(2).replace('.', ',')}` : 'Frete grátis') : '', offer.gift ? `Brinde: ${offer.gift}` : ''].filter(Boolean).join(' · '), imageUrl: '' });
     return slides;
   });
   constructor() {

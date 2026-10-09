@@ -37,6 +37,16 @@ export class ProgrammingRequest {
 const ProgrammingRequestSchema = SchemaFactory.createForClass(ProgrammingRequest);
 
 @Schema({ _id: false })
+export class ItemOffer {
+  @Prop({ required: true, min: 0, max: 100 })
+  discountPercent!: number;
+
+  @Prop({ required: true, default: false })
+  freeShipping!: boolean;
+}
+const ItemOfferSchema = SchemaFactory.createForClass(ItemOffer);
+
+@Schema({ _id: false })
 export class OrderItem {
   @Prop({ type: String, index: true }) storeProjectId?: string;
   @Prop({ type: String, enum: ['DIGITAL', 'PHYSICAL'] }) deliveryKind?: string;
@@ -61,6 +71,9 @@ export class OrderItem {
   @Prop({ required: true, min: 0 })
   total!: number;
 
+  @Prop({ type: ItemOfferSchema })
+  offer?: ItemOffer;
+
   @Prop({ type: ProgrammingRequestSchema, required: true })
   programmingRequest!: ProgrammingRequest;
 }
@@ -79,6 +92,7 @@ const OrderShippingSchema = SchemaFactory.createForClass(OrderShipping);
 export class OrderOffer {
   @Prop({ required: true, min: 0, max: 100 }) discountPercent!: number;
   @Prop({ required: true, default: false }) freeShipping!: boolean;
+  @Prop({ min: 0 }) freeShippingMinimum?: number;
   @Prop({ type: String, maxlength: 200 }) gift?: string;
   @Prop({ required: true }) sentAt!: Date;
   @Prop({ type: Date }) viewedAt?: Date;

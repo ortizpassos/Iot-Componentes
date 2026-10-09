@@ -51,7 +51,7 @@ export class AdminPage {
   tab = signal<Tab>('products'); rows = signal<Row[]>([]); summary = signal<Summary | null>(null);
   loading = signal(false); busy = signal(false); error = signal(''); notice = signal(''); summaryError = signal(false);
   editor = signal(false); editingId = ''; form = emptyForm(); search = ''; page = signal(1); total = signal(0);
-  offerEditor = signal<'global' | 'product' | null>(null); offerProduct = signal<any>(null); offerSettings: StoreValues = structuredClone(defaultStore); offerForm = { enabled: false, title: '', description: '', discountPercent: 0, freeShipping: false, gift: '', expiresAt: '' };
+  offerEditor = signal<'global' | 'product' | null>(null); offerProduct = signal<any>(null); offerSettings: StoreValues = structuredClone(defaultStore); offerForm = { enabled: false, discountEnabled: false, title: '', description: '', discountPercent: 0, freeShipping: false, freeShippingMinimum: 0, gift: '', expiresAt: '' };
   detail = signal<(Order & { customer?: Person }) | null>(null);
   pending = signal<{ label: string; path: string; body: object; remove?: boolean; post?: boolean; successMessage?: string } | null>(null);
   ownerSearch = ''; owners = signal<Row[]>([]); ownerLoading = signal(false);
@@ -127,11 +127,11 @@ export class AdminPage {
   }
   openGlobalOffer() {
     if (this.busy()) return;
-    this.error.set(''); this.api.get<StoreValues>('settings').subscribe({ next: value => { this.offerSettings = structuredClone({ ...defaultStore, ...value }); this.offerForm = { ...this.offerForm, ...this.offerSettings.globalOffer }; this.offerEditor.set('global'); }, error: e => this.fail(e) });
+    this.error.set(''); this.api.get<StoreValues>('settings').subscribe({ next: value => { this.offerSettings = structuredClone({ ...defaultStore, ...value }); this.offerForm = { ...this.offerForm, ...this.offerSettings.globalOffer, discountEnabled: this.offerSettings.globalOffer.discountEnabled ?? this.offerSettings.globalOffer.discountPercent > 0 }; this.offerEditor.set('global'); }, error: e => this.fail(e) });
   }
   openProductOffer(row: Row) {
     if (this.busy()) return;
-    this.error.set(''); this.api.get<any>('products/' + row._id).subscribe({ next: product => { this.offerProduct.set(product); this.offerForm = { enabled: !!product.offer?.enabled, title: product.offer?.title || '', description: product.offer?.description || '', discountPercent: product.offer?.discountPercent || 0, freeShipping: !!product.offer?.freeShipping, gift: product.offer?.gift || '', expiresAt: product.offer?.expiresAt ? String(product.offer.expiresAt).slice(0, 10) : '' }; this.offerEditor.set('product'); }, error: e => this.fail(e) });
+    this.error.set(''); this.api.get<any>('products/' + row._id).subscribe({ next: product => { this.offerProduct.set(product); this.offerForm = { enabled: !!product.offer?.enabled, discountEnabled: (product.offer?.discountPercent || 0) > 0, title: product.offer?.title || '', description: product.offer?.description || '', discountPercent: product.offer?.discountPercent || 0, freeShipping: !!product.offer?.freeShipping, freeShippingMinimum: 0, gift: product.offer?.gift || '', expiresAt: product.offer?.expiresAt ? String(product.offer.expiresAt).slice(0, 10) : '' }; this.offerEditor.set('product'); }, error: e => this.fail(e) });
   }
   saveOffer() {
     if (this.busy() || !this.offerEditor()) return;

@@ -26,7 +26,7 @@ import { StoreConfig } from './store-config';
         <section class="panel">
           <p class="eyebrow">{{ typeLabel(item.type) }}</p><h1>{{ item.name }}</h1>
           <p class="muted">SKU: {{ item.sku }}</p><p class="price">{{ item.price | currency:'BRL' }}</p>
-          @if (offerActive(item)) { <section class="offer-panel"><h2>{{ item.offer?.title || 'Oferta especial' }}</h2><p>{{ item.offer?.description }}</p>@if (item.offer?.discountPercent) { <p><strong>{{ item.offer?.discountPercent }}% de desconto</strong></p> }@if (item.offer?.freeShipping) { <p><strong>Frete grátis</strong></p> }@if (item.offer?.gift) { <p>Brinde: <strong>{{ item.offer?.gift }}</strong></p> }</section> }
+          @if (activeOffer(item); as offer) { <section class="offer-panel"><h2>{{ offer.title || 'Oferta especial' }}</h2>@if (offer.description) { <p>{{ offer.description }}</p> }@if (offer.discountEnabled !== false && offer.discountPercent) { <p><strong>{{ offer.discountPercent }}% de desconto</strong></p> }@if (offer.freeShipping) { <p><strong>{{ freeShippingLabel(offer) }}</strong></p> }@if (offer.gift) { <p>Brinde: <strong>{{ offer.gift }}</strong></p> }</section> }
           @if (item.stock < 1) { <p class="sold-out" role="status">Esgotado!</p> } @else { <p>{{ item.stock }} em estoque</p> }
           @if (item.manufacturer) { <p><strong>Fabricante:</strong> {{ item.manufacturer }}</p> }
           @if (item.model) { <p><strong>Modelo:</strong> {{ item.model }}</p> }
@@ -86,7 +86,9 @@ export class ProductDetailPage {
     this.api.post<ShippingQuote>('shipping/quote', { destinationZipCode: zipCode, items: [{ productId: this.product()!._id, quantity: 1 }] }).subscribe({ next: quote => { this.shippingQuote.set(quote); this.shippingBusy.set(false); }, error: e => { this.shippingError.set(errorMessage(e)); this.shippingBusy.set(false); } });
   }
   isObject(value: unknown) { return value !== null && typeof value === 'object'; }
-  offerActive(product: Product) { const global = this.store.value().globalOffer; return (!!product.offer?.enabled && (!product.offer.expiresAt || new Date(product.offer.expiresAt).getTime() > Date.now())) || (!!global?.enabled && (!global.expiresAt || new Date(global.expiresAt).getTime() > Date.now())); }
+  activeOffer(product: Product) { const global = this.store.value().globalOffer; const productActive = !!product.offer?.enabled && (!product.offer.expiresAt || new Date(product.offer.expiresAt).getTime() > Date.now()); if (productActive) return product.offer; return !!global?.enabled && (!global.expiresAt || new Date(global.expiresAt).getTime() > Date.now()) ? global : undefined; }
+  freeShippingLabel(offer: { freeShippingMinimum?: number }) { return offer.freeShippingMinimum ? `Frete grátis acima de R$ ${offer.freeShippingMinimum.toFixed(2).replace('.', ',')}` : 'Frete grátis'; }
+  offerActive(product: Product) { return !!this.activeOffer(product); }
   typeLabel(type: string) { return ({ BOARD: 'Display', SENSOR: 'Sensor', MODULE: 'Módulo', KIT: 'Kit', ACCESSORY: 'Acessório', SERVICE: 'Serviço', MICROCONTROLLER_PIC: 'Microcontrolador PIC', ESP32: 'ESP32', SEMICONDUCTOR: 'Semicondutor', SMART_HOME: 'Casa Inteligente' } as Record<string, string>)[type] || type; }
   add(product: Product) { if (!this.cart.add(product)) return; this.message.set('Produto adicionado ao carrinho.'); }
   buy(product: Product) { if (product.stock < 1) return; void this.router.navigate(['/finalizar-compra', product._id]); }

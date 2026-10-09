@@ -12,11 +12,16 @@ import { EmailEventsService } from '../email/email-events.module';
 import { NotificationsService } from '../notifications/notifications.module';
 
 export const RETRYABLE = ['rejected', 'cancelled', 'failed'];
-export function payableTotal(order: Pick<Order, 'total' | 'shipping' | 'offer'>) {
+export function payableTotal(order: Pick<Order, 'total' | 'shipping' | 'offer' | 'items'>) {
   const offer = order.offer?.expiresAt && order.offer.expiresAt > new Date() ? order.offer : undefined;
-  const discount = order.total * ((offer?.discountPercent || 0) / 100);
+  const itemTotal = order.items?.reduce((total, item) => {
+    const discount = item.total * ((item.offer?.discountPercent || 0) / 100);
+    return total + Math.max(0, item.total - discount);
+  }, 0) ?? order.total;
+  const discount = itemTotal * ((offer?.discountPercent || 0) / 100);
   const shipping = offer?.freeShipping ? (order.shipping?.price || 0) : 0;
-  return Math.max(0, Math.round((order.total - discount - shipping + Number.EPSILON) * 100) / 100);
+  const itemFreeShipping = order.items?.some(item => item.offer?.freeShipping) || false;
+  return Math.max(0, Math.round((itemTotal - discount - (offer?.freeShipping || itemFreeShipping ? (order.shipping?.price || 0) : shipping) + Number.EPSILON) * 100) / 100);
 }
 export function eligible(order: Order) {
   return order.status === OrderStatus.PENDING && (!order.reservationExpiresAt || order.reservationExpiresAt > new Date()) && payableTotal(order) > 0 && order.items.length > 0 && order.items.every(i => !i.programmingRequest.requested && i.programmingRequest.type === 'NONE');

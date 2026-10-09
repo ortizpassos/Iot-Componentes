@@ -75,6 +75,11 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         quantity: input.quantity,
         unitPrice: unitCents / 100,
         total: itemCents / 100,
+        ...(() => {
+          const productOffer = product.offer;
+          const active = !!productOffer?.enabled && (!productOffer.expiresAt || new Date(productOffer.expiresAt).getTime() > Date.now());
+          return active && (productOffer.discountPercent || productOffer.freeShipping) ? { offer: { discountPercent: productOffer.discountPercent || 0, freeShipping: productOffer.freeShipping === true } } : {};
+        })(),
         programmingRequest: { requested, type, ...(requirements ? { requirements } : {}) },
       });
     }
@@ -97,7 +102,10 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
 
     const global = this.settingsService ? (await this.settingsService.get()).globalOffer : undefined;
     const globalActive = !!global?.enabled && (!global.expiresAt || new Date(global.expiresAt).getTime() > Date.now());
-    const offer = globalActive ? { discountPercent: global.discountPercent || 0, freeShipping: global.freeShipping === true, ...(global.gift ? { gift: global.gift } : {}), sentAt: new Date(), viewedAt: new Date(), expiresAt: global.expiresAt ? new Date(global.expiresAt) : new Date(Date.now() + 24 * 60 * 60_000) } : undefined;
+    const freeShippingMinimum = Number(global?.freeShippingMinimum) > 0 ? Number(global?.freeShippingMinimum) : undefined;
+    const freeShippingQualified = global?.freeShipping === true && (!freeShippingMinimum || totalCents / 100 >= freeShippingMinimum);
+    const discountPercent = global?.discountEnabled === false ? 0 : global?.discountPercent || 0;
+    const offer = globalActive ? { discountPercent, freeShipping: freeShippingQualified, ...(freeShippingMinimum ? { freeShippingMinimum } : {}), ...(global.gift ? { gift: global.gift } : {}), sentAt: new Date(), viewedAt: new Date(), expiresAt: global.expiresAt ? new Date(global.expiresAt) : new Date(Date.now() + 24 * 60 * 60_000) } : undefined;
     const reserved: { productId: string; quantity: number }[] = [];
     try {
       for (const item of items) {

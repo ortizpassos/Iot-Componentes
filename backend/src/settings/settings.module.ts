@@ -15,14 +15,16 @@ export const defaults = {
   bannerDescription: 'Escolha sua placa e solicite a programação que o seu projeto precisa.',
   announcement: '', contactEmail: '',
   bannerSlides: [] as BannerSlideDto[], bannerInterval: 6,
-  globalOffer: { enabled: false, title: '', description: '', discountPercent: 0, freeShipping: false, gift: '', expiresAt: '' },
+  globalOffer: { enabled: false, discountEnabled: false, title: '', description: '', discountPercent: 0, freeShipping: false, freeShippingMinimum: 0, gift: '', expiresAt: '' },
 };
 export class GlobalOfferDto {
   @IsOptional() @IsBoolean() enabled?: boolean;
+  @IsOptional() @IsBoolean() discountEnabled?: boolean;
   @IsOptional() @IsString() @MaxLength(120) title?: string;
   @IsOptional() @IsString() @MaxLength(500) description?: string;
   @IsOptional() @IsNumber() @Min(0) @Max(100) discountPercent?: number;
   @IsOptional() @IsBoolean() freeShipping?: boolean;
+  @IsOptional() @IsNumber() @Min(0) freeShippingMinimum?: number;
   @IsOptional() @IsString() @MaxLength(200) gift?: string;
   @IsOptional() @IsString() @MaxLength(40) expiresAt?: string;
 }
