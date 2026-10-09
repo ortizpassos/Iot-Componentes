@@ -105,7 +105,8 @@ export class AdminService {
     const customer = order.customer as any;
     const gift = dto.gift?.trim();
     if (!dto.discountPercent && !dto.freeShipping && !gift) throw new BadRequestException('Informe um desconto, frete grátis ou brinde.');
-    const offer = { discountPercent: dto.discountPercent || 0, freeShipping: dto.freeShipping === true, ...(gift ? { gift } : {}), sentAt: new Date() };
+    const sentAt = new Date();
+    const offer = { discountPercent: dto.discountPercent || 0, freeShipping: dto.freeShipping === true, ...(gift ? { gift } : {}), sentAt, expiresAt: new Date(sentAt.getTime() + 24 * 60 * 60_000) };
     const result = await this.orders.findOneAndUpdate({ _id: order._id, status: OrderStatus.PENDING }, { $set: { offer } }, { new: true, runValidators: true }).populate('customer', 'name email').lean();
     if (!result) throw new ConflictException('Pedido alterado. Atualize a lista.');
     if (this.emails && customer?.email) void this.emails.publish({ type: 'order.offer', email: customer.email, name: customer.name || 'Cliente', orderId: String(order._id), total: order.total, discountPercent: offer.discountPercent, freeShipping: offer.freeShipping, gift: offer.gift });
