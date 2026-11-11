@@ -8,20 +8,20 @@ import { ProductImage } from './product-image';
 @Component({ selector: 'app-store-banner', imports: [CurrencyPipe, ProductImage, RouterLink], template: `
   <section class="banner" aria-label="Novidades e avisos da loja" aria-roledescription="carrossel" (mouseenter)="hovered.set(true)" (mouseleave)="hovered.set(false)" (focusin)="onFocus($event)">
     <div class="slide-track" [style.transform]="'translateX(-' + (index() % heroSlideCount()) * 100 + '%)'">
-    @if (offerSlides().length) {
-      @for (products of offerSlides(); track $index; let i = $index) {
-        <div class="slide offer-hero-slide" role="group" aria-roledescription="slide" [attr.aria-hidden]="i !== index() % heroSlideCount()" [attr.aria-label]="'Ofertas ' + (i + 1) + ' de ' + offerSlides().length">
+    @if (offerProducts().length) {
+        <div class="slide offer-hero-slide" role="group" aria-roledescription="slide" aria-label="Produtos em oferta">
           <div class="offer-hero-heading"><p class="eyebrow">OFERTAS ESPECIAIS</p><h2>{{ offerTitle() }}</h2><p class="description">Aproveite nossas ofertas selecionadas.</p></div>
-          <div class="offer-hero-products">
-            @for (product of products; track product._id) {
+          <div class="offer-products-window">
+            <div class="offer-hero-products" [style.transform]="'translateX(calc(-' + offerIndex() + ' * (33.333% + 4px)))'">
+            @for (product of offerWindowProducts(); track $index) {
               <a class="banner-product offer-product" [routerLink]="product.storeProjectId ? ['/projetos', product.storeProjectId] : ['/produto', product._id]" [attr.aria-label]="'Ver oferta de ' + product.name">
                 <span class="banner-product-image"><app-product-image [src]="product.imageUrl || ''" [alt]="product.name" /></span>
                 <span class="banner-product-info"><strong>{{ product.name }}</strong><span>{{ product.price | currency:'BRL' }}</span><small>{{ offerDescription(product) }}</small></span>
               </a>
             }
+            </div>
           </div>
         </div>
-      }
     } @else {
       @for (slide of slides(); track $index; let i = $index) {
         <div class="slide" [class.with-image]="slide.imageUrl && failedImage() !== slide.imageUrl" role="group" aria-roledescription="slide" [attr.aria-hidden]="i !== index() % heroSlideCount()" [attr.aria-label]="(i + 1) + ' de ' + slides().length">
@@ -83,7 +83,9 @@ import { ProductImage } from './product-image';
   .offer-hero-slide{display:block;padding:28px clamp(18px,5%,55px) 30px;background:linear-gradient(110deg,#e8f5ec,#f7fcf8)}
   .offer-hero-heading{margin-bottom:16px}
   .offer-hero-heading h2{margin:7px 0;font-size:clamp(25px,3vw,40px)}
-  .offer-hero-products{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .offer-products-window{overflow:hidden}
+  .offer-hero-products{display:flex;gap:12px;transition:transform 600ms ease-in-out}
+  .offer-hero-products>.offer-product{flex:0 0 calc((100% - 24px)/3)}
   .offer-product{border-color:#b9ddc3;background:#f6fcf7}
   .offer-product .banner-product-info>span{color:#16803c}
   .offer-product .banner-product-info small{font-size:10px;color:#16803c;font-weight:700}
@@ -146,13 +148,12 @@ export class StoreBanner {
       return (globalActive || !!offer?.enabled && (!offer.expiresAt || new Date(offer.expiresAt).getTime() > Date.now())) && product.stock > 0;
     });
   });
-  offerSlides = computed(() => {
+  offerWindowProducts = computed(() => {
     const products = this.offerProducts();
-    const slides: Product[][] = [];
-    for (let index = 0; index < products.length; index += 3) slides.push(products.slice(index, index + 3));
-    return slides;
+    return products.length > 1 ? [...products, ...products.slice(0, 2)] : products;
   });
-  heroSlides = computed(() => this.offerSlides().length ? this.offerSlides() : this.slides());
+  offerIndex = signal(0);
+  heroSlides = computed(() => this.offerProducts().length ? [{ title: this.offerTitle(), description: 'Produtos em oferta', imageUrl: '' }] : this.slides());
   heroSlideCount = computed(() => this.heroSlides().length || 1);
   offerTitle = computed(() => this.store.value().globalOffer?.title || 'Produtos selecionados');
   constructor() {
@@ -171,6 +172,13 @@ export class StoreBanner {
       const count = this.productSlides().length;
       if (this.paused() || this.hovered() || count < 2) return;
       const timer = setInterval(() => this.productIndex.update(index => (index + 1) % count), seconds * 1000);
+      onCleanup(() => clearInterval(timer));
+    });
+    effect(onCleanup => {
+      const seconds = this.store.value().bannerInterval || 6;
+      const count = this.offerProducts().length;
+      if (this.paused() || this.hovered() || count < 2) return;
+      const timer = setInterval(() => this.offerIndex.update(index => (index + 1) % count), seconds * 1000);
       onCleanup(() => clearInterval(timer));
     });
   }
