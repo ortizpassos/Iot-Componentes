@@ -86,7 +86,12 @@ export class ProductDetailPage {
     this.api.post<ShippingQuote>('shipping/quote', { destinationZipCode: zipCode, items: [{ productId: this.product()!._id, quantity: 1 }] }).subscribe({ next: quote => { this.shippingQuote.set(quote); this.shippingBusy.set(false); }, error: e => { this.shippingError.set(errorMessage(e)); this.shippingBusy.set(false); } });
   }
   isObject(value: unknown) { return value !== null && typeof value === 'object'; }
-  activeOffer(product: Product) { const global = this.store.value().globalOffer; const productActive = !!product.offer?.enabled && (!product.offer.expiresAt || new Date(product.offer.expiresAt).getTime() > Date.now()); if (productActive) return product.offer; return !!global?.enabled && (!global.expiresAt || new Date(global.expiresAt).getTime() > Date.now()) ? global : undefined; }
+  activeOffer(product: Product) {
+    const global = this.store.value().globalOffer;
+    const productActive = !!product.offer?.enabled && (!product.offer.expiresAt || new Date(product.offer.expiresAt).getTime() > Date.now());
+    const offer = productActive ? product.offer : (!!global?.enabled && (!global.expiresAt || new Date(global.expiresAt).getTime() > Date.now()) ? global : undefined);
+    return offer && (!offer.freeShipping || !offer.freeShippingMinimum || product.price >= offer.freeShippingMinimum) ? offer : undefined;
+  }
   freeShippingLabel(offer: { freeShippingMinimum?: number }) { return offer.freeShippingMinimum ? `Frete grátis acima de R$ ${offer.freeShippingMinimum.toFixed(2).replace('.', ',')}` : 'Frete grátis'; }
   offerActive(product: Product) { return !!this.activeOffer(product); }
   typeLabel(type: string) { return ({ BOARD: 'Display', SENSOR: 'Sensor', MODULE: 'Módulo', KIT: 'Kit', ACCESSORY: 'Acessório', SERVICE: 'Serviço', MICROCONTROLLER_PIC: 'Microcontrolador PIC', ESP32: 'ESP32', SEMICONDUCTOR: 'Semicondutor', SMART_HOME: 'Casa Inteligente' } as Record<string, string>)[type] || type; }

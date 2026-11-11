@@ -145,7 +145,9 @@ export class StoreBanner {
     const globalActive = !!global?.enabled && (!global.expiresAt || new Date(global.expiresAt).getTime() > Date.now());
     return this.products().filter(product => {
       const offer = product.offer;
-      return (globalActive || !!offer?.enabled && (!offer.expiresAt || new Date(offer.expiresAt).getTime() > Date.now())) && product.stock > 0;
+      const productActive = !!offer?.enabled && (!offer.expiresAt || new Date(offer.expiresAt).getTime() > Date.now());
+      const activeOffer = productActive ? offer : globalActive ? global : undefined;
+      return !!activeOffer && this.offerMeetsMinimum(product, activeOffer) && product.stock > 0;
     });
   });
   offerWindowProducts = computed(() => {
@@ -193,6 +195,9 @@ export class StoreBanner {
     if (global?.enabled && global.title) return global.title;
     const discount = offer?.discountPercent || global?.discountPercent;
     return discount ? `${discount}% OFF` : 'Oferta especial';
+  }
+  private offerMeetsMinimum(product: Product, offer: { freeShipping?: boolean; freeShippingMinimum?: number }) {
+    return !offer.freeShipping || !offer.freeShippingMinimum || product.price >= offer.freeShippingMinimum;
   }
   selectProductCategory(index: number) { this.paused.set(true); this.productIndex.set(index); }
   select(index: number) { this.paused.set(true); this.index.set(index); }

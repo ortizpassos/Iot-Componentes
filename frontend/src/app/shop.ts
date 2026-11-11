@@ -41,7 +41,13 @@ export class CatalogPage {
   filtered = computed(() => this.products().filter(p => (!this.filter() || p.type === this.filter()) && `${p.name} ${p.sku} ${p.model || ''} ${p.manufacturer || ''}`.toLocaleLowerCase().includes(this.query().toLocaleLowerCase())));
   constructor() { this.load(); }
   label(type: string) { return this.types.find(t => t.value === type)?.label || type; }
-  offerActive(product: Product) { const global = this.store.value().globalOffer; return (!!product.offer?.enabled && (!product.offer.expiresAt || new Date(product.offer.expiresAt).getTime() > Date.now())) || (!!global?.enabled && (!global.expiresAt || new Date(global.expiresAt).getTime() > Date.now())); }
+  offerActive(product: Product) {
+    const global = this.store.value().globalOffer;
+    const productActive = !!product.offer?.enabled && (!product.offer.expiresAt || new Date(product.offer.expiresAt).getTime() > Date.now());
+    const globalActive = !!global?.enabled && (!global.expiresAt || new Date(global.expiresAt).getTime() > Date.now());
+    const offer = productActive ? product.offer : globalActive ? global : undefined;
+    return !!offer && (!offer.freeShipping || !offer.freeShippingMinimum || product.price >= offer.freeShippingMinimum);
+  }
   load() { this.loading.set(true); this.error.set(''); this.api.get<Product[]>('products').subscribe({ next: data => { this.products.set(data); this.loading.set(false); this.loadCatalogShipping(data.filter(p => p.deliveryKind !== 'DIGITAL')); }, error: e => { this.error.set(errorMessage(e)); this.loading.set(false); } }); }
   private loadCatalogShipping(products: Product[]) {
     if (!this.session.token()) return;
