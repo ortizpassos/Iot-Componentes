@@ -1,4 +1,5 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { SettingsService } from '../settings/settings.module';
+import { Injectable, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 export interface ProviderPayment {
@@ -11,12 +12,22 @@ export interface ProviderCard { id: string; last_four_digits: string; payment_me
 export class ProviderError extends Error { constructor(public readonly status: number) { super('Mercado Pago indisponível.'); } }
 @Injectable()
 export class MercadoPagoService {
-  constructor(private readonly config: ConfigService) {}
-  configuration() {
-    return { enabled: !!this.config.get<string>('MP_ACCESS_TOKEN') && !!this.config.get<string>('MP_PUBLIC_KEY'), publicKey: this.config.get<string>('MP_PUBLIC_KEY') || '' };
+  constructor(private readonly config: ConfigService, @Optional() private readonly settings?: SettingsService) {}
+  async credentials() {
+    const stored = await this.settings?.getMercadoPago();
+    return {
+      publicKey: stored?.publicKey ?? this.config.get<string>('MP_PUBLIC_KEY') ?? '',
+      accessToken: stored?.accessToken ?? this.config.get<string>('MP_ACCESS_TOKEN') ?? '',
+      webhookSecret: stored?.webhookSecret ?? this.config.get<string>('MP_WEBHOOK_SECRET') ?? '',
+      notificationUrl: stored?.notificationUrl ?? this.config.get<string>('MP_NOTIFICATION_URL') ?? '',
+    };
+  }
+  async configuration() {
+    const credentials = await this.credentials();
+    return { enabled: !!credentials.accessToken && !!credentials.publicKey, publicKey: credentials.publicKey };
   }
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const token = this.config.get<string>('MP_ACCESS_TOKEN');
+    const token = (await this.credentials()).accessToken;
     if (!token) throw new ServiceUnavailableException('Pagamento ainda não configurado pela loja.');
     let response: Response;
     try { response = await fetch(`https://api.mercadopago.com${path}`, { ...init, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...init.headers }, signal: AbortSignal.timeout(10000) }); }

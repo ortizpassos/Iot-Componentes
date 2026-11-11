@@ -9,12 +9,42 @@ const { CreatePaymentDto } = require('../dist/payments/payment.dto');
 const id = '507f1f77bcf86cd799439012', customer = '507f1f77bcf86cd799439011';
 const dto = { method: 'pix', payer: { email: 'payer@example.com', identification: { type: 'CPF', number: '12345678909' } } };
 const clone = value => value ? structuredClone(value) : value;
+
+test('stored credentials override environment without exposing secrets in checkout', async () => {
+  const provider = new MercadoPagoService({ get: () => 'environment-value' }, {
+    getMercadoPago: async () => ({ publicKey: 'stored-public', accessToken: 'stored-token', webhookSecret: 'stored-secret', notificationUrl: '' }),
+  });
+  assert.deepEqual(await provider.configuration(), { enabled: true, publicKey: 'stored-public' });
+  assert.equal((await provider.credentials()).accessToken, 'stored-token');
+  assert.equal((await provider.credentials()).webhookSecret, 'stored-secret');
+  assert.equal((await provider.credentials()).notificationUrl, '');
+});
+
+test('admin settings hide secrets and preserve omitted credentials', async () => {
+  const { SettingsService, SettingsController, StoreSettingsSchema, MercadoPagoSettingsDto } = require('../dist/settings/settings.module');
+  let update;
+  const settings = new SettingsService({
+    findOne: () => ({ select: () => ({ lean: async () => ({ mercadoPago: { publicKey: 'public', accessToken: 'secret', webhookSecret: 'signature' } }) }) }),
+    findOneAndUpdate: async (_, value) => { update = value; },
+  });
+  const controller = new SettingsController(settings);
+  assert.deepEqual(await controller.mercadoPago(), { publicKey: 'public', notificationUrl: '', accessTokenConfigured: true, webhookSecretConfigured: true });
+  await settings.saveMercadoPago({ publicKey: 'updated', notificationUrl: '' });
+  assert.deepEqual(update, { $set: { 'mercadoPago.publicKey': 'updated', 'mercadoPago.notificationUrl': '' } });
+  assert.equal(StoreSettingsSchema.path('mercadoPago').options.select, false);
+  for (const method of ['mercadoPago', 'saveMercadoPago']) assert.equal(Reflect.getMetadata('__guards__', SettingsController.prototype[method]).length, 2);
+  const pipe = new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true });
+  const validate = body => pipe.transform(body, { type: 'body', metatype: MercadoPagoSettingsDto });
+  await validate({ publicKey: 'public', notificationUrl: '' });
+  await assert.rejects(validate({ publicKey: 'public', notificationUrl: 'http://example.com/webhook' }));
+  await assert.rejects(validate({ publicKey: 'public', notificationUrl: '', accessToken: null }));
+});
 test('payment lookup casts authenticated customer IDs and preserves ownership', async () => {
   const mongoose = require('mongoose');
   const { OrderSchema } = require('../dist/orders/schemas/order.schema');
   const connection = mongoose.createConnection();
   const model = connection.model('Order', OrderSchema);
-  const stored = { _id: new mongoose.Types.ObjectId(id), customer: new mongoose.Types.ObjectId(customer), status: 'PENDING', total: 89.9, items: [{ productId: id, quantity: 1, name: 'Sensor', programmingRequest: { requested: false, type: 'NONE' } }] };
+  const stored = { _id: new mongoose.Types.ObjectId(id), customer: new mongoose.Types.ObjectId(customer), status: 'PENDING', total: 89.9, items: [{ productId: id, quantity: 1, total: 89.9, name: 'Sensor', programmingRequest: { requested: false, type: 'NONE' } }] };
   model.collection.findOne = async filter => {
     assert.ok(filter._id instanceof mongoose.Types.ObjectId);
     assert.ok(filter.customer instanceof mongoose.Types.ObjectId);
@@ -29,7 +59,7 @@ test('payment lookup casts authenticated customer IDs and preserves ownership', 
   }
 });
 function fixture() {
-  const state = { _id: id, customer, status: 'PENDING', total: 89.9, reservationExpiresAt: new Date(Date.now() + 5 * 60_000), items: [{ productId: id, quantity: 1, name: 'Sensor', programmingRequest: { requested: false, type: 'NONE' } }] };
+  const state = { _id: id, customer, status: 'PENDING', total: 89.9, reservationExpiresAt: new Date(Date.now() + 5 * 60_000), items: [{ productId: id, quantity: 1, total: 89.9, name: 'Sensor', programmingRequest: { requested: false, type: 'NONE' } }] };
   const field = (obj, key) => key.split('.').reduce((o, k) => o?.[k], obj);
   const match = filter => Object.entries(filter).every(([key, value]) => {
     if (key === '$or') return value.some(match);
@@ -50,7 +80,8 @@ function fixture() {
   };
   let created = 0; let body; let remote;
   const provider = {
-    configuration: () => ({ enabled: true }),
+    configuration: async () => ({ enabled: true }),
+    credentials: async () => ({ webhookSecret: 'test-secret', notificationUrl: '' }),
     create: async (input, key) => { created++; body = input; assert.equal(key, state.payment.key); remote = { id: 123, status: 'pending', currency_id: 'BRL', external_reference: input.external_reference, transaction_amount: input.transaction_amount, date_last_updated: '2026-09-25T12:00:00Z', point_of_interaction: { transaction_data: { qr_code: 'pix-code', qr_code_base64: 'base64' } } }; return clone(remote); },
     get: async () => clone(remote), search: async () => remote ? [clone(remote)] : [],
   };
@@ -124,7 +155,7 @@ test('server total and ownership govern payment, concurrent submissions create o
   await assert.rejects(f.service.create(customer, id, dto), e => e.getStatus() === 409);
 });
 test('programming requests, cancelled orders and zero totals cannot be charged', async () => {
-  for (const change of [s => s.items[0].programmingRequest = { requested: true, type: 'CUSTOM' }, s => s.status = 'CANCELLED', s => s.total = 0]) {
+  for (const change of [s => s.items[0].programmingRequest = { requested: true, type: 'CUSTOM' }, s => s.status = 'CANCELLED', s => { s.total = 0; s.items[0].total = 0; }]) {
     const f = fixture(); change(f.state); await assert.rejects(f.service.create(customer, id, dto), e => e.getStatus() === 409); assert.equal(f.created(), 0);
   }
 });
@@ -157,7 +188,7 @@ test('payment DTO rejects client totals/card numbers and config never exposes pr
   const validate = body => pipe.transform(body, { type: 'body', metatype: CreatePaymentDto });
   await validate(dto);
   for (const extra of [{ total: 1 }, { transaction_amount: 1 }, { cardNumber: '4111111111111111' }, { installments: 100 }, { method: 'cash' }]) await assert.rejects(validate({ ...dto, ...extra }));
-  const config = new MercadoPagoService({ get: key => ({ MP_ACCESS_TOKEN: 'private-secret', MP_PUBLIC_KEY: 'public-key' })[key] }).configuration();
+  const config = await new MercadoPagoService({ get: key => ({ MP_ACCESS_TOKEN: 'private-secret', MP_PUBLIC_KEY: 'public-key' })[key] }).configuration();
   assert.deepEqual(config, { enabled: true, publicKey: 'public-key' });
 });
 

@@ -2,7 +2,7 @@ import { Body, Controller, Get, Injectable, Module, Put, UseGuards } from '@nest
 import { InjectModel, MongooseModule, Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Transform, Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, MaxLength, Min, IsUrl, ValidateIf, ValidateNested } from 'class-validator';
 import { IsProductImageUrl } from '../products/image-url.validator';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -50,8 +50,18 @@ export class StoreSettingsDto {
   @IsOptional() @ValidateNested() @Type(() => GlobalOfferDto) globalOffer?: GlobalOfferDto;
   @IsString() @MaxLength(254) @ValidateIf((o) => o.contactEmail !== '') @IsEmail() contactEmail!: string;
 }
+export class MercadoPagoSettingsDto {
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsString() @IsNotEmpty() @MaxLength(300) publicKey!: string;
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @ValidateIf(o => o.accessToken !== undefined) @IsString() @IsNotEmpty() @MaxLength(500) accessToken?: string;
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @ValidateIf(o => o.webhookSecret !== undefined) @IsString() @IsNotEmpty() @MaxLength(500) webhookSecret?: string;
+  @ValidateIf(o => o.notificationUrl !== '') @IsUrl({ protocols: ['https'], require_protocol: true }) @MaxLength(2048) notificationUrl!: string;
+}
 @Schema({ timestamps: true })
 export class StoreSettings {
+  @Prop({ type: Object, select: false }) mercadoPago?: MercadoPagoSettingsDto;
   @Prop({ type: Object, select: false }) shippingSender?: ShippingSender;
   @Prop({ unique: true, default: 'store' }) key!: string;
   @Prop({ type: Object, default: defaults }) content!: typeof defaults;
@@ -59,6 +69,19 @@ export class StoreSettings {
 export const StoreSettingsSchema = SchemaFactory.createForClass(StoreSettings);
 @Injectable()
 export class SettingsService {
+  async getMercadoPago() {
+    const doc = await this.model.findOne({ key: 'store' }).select('+mercadoPago').lean();
+    return doc?.mercadoPago;
+  }
+  async saveMercadoPago(dto: MercadoPagoSettingsDto) {
+    const fields: Record<string, string> = {};
+    for (const key of ['publicKey', 'accessToken', 'webhookSecret', 'notificationUrl'] as const) {
+      if (dto[key] !== undefined) fields[`mercadoPago.${key}`] = dto[key]!;
+    }
+    await this.model.findOneAndUpdate({ key: 'store' }, { $set: fields }, { upsert: true, runValidators: true });
+    return { saved: true };
+  }
+
   async getShippingSender() {
     const doc = await this.model.findOne({ key: 'store' }).select('+shippingSender').lean();
     return doc?.shippingSender;
@@ -82,6 +105,13 @@ export class SettingsService {
 @Controller('settings')
 export class SettingsController {
   constructor(private readonly settings: SettingsService) {}
+  @Get('mercado-pago') @UseGuards(JwtAuthGuard, AdminGuard)
+  async mercadoPago() {
+    const stored = await this.settings.getMercadoPago();
+    return { publicKey: stored?.publicKey || '', notificationUrl: stored?.notificationUrl || '', accessTokenConfigured: !!stored?.accessToken, webhookSecretConfigured: !!stored?.webhookSecret };
+  }
+  @Put('mercado-pago') @UseGuards(JwtAuthGuard, AdminGuard)
+  saveMercadoPago(@Body() dto: MercadoPagoSettingsDto) { return this.settings.saveMercadoPago(dto); }
   @Get() get() { return this.settings.get(); }
   @Get('shipping-sender') @UseGuards(JwtAuthGuard, AdminGuard)
   async sender() { return { sender: await this.settings.getShippingSender() || null }; }

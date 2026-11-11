@@ -1,10 +1,11 @@
+import { AdminMercadoPago } from './admin-mercado-pago';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Api, errorMessage } from './core';
 import { StoreConfig, StoreValues, defaultStore } from './store-config';
 import { ProductImage } from './product-image';
 import { AdminSender } from './admin-sender';
-@Component({ selector: 'app-admin-settings', imports: [FormsModule, ProductImage, AdminSender], template: `
+@Component({ selector: 'app-admin-settings', imports: [FormsModule, ProductImage, AdminSender, AdminMercadoPago], template: `
   <section class="panel"><h2>Configurações da loja</h2><p class="muted">As alterações serão exibidas aos clientes ao abrir ou atualizar a loja.</p>
   @if (error()) { <p role="alert" class="error">{{ error() }} <button (click)="load()">Recarregar</button></p> }
   @if (saved()) { <p class="notice" role="status">Configurações publicadas na loja.</p> }
@@ -38,6 +39,7 @@ import { AdminSender } from './admin-sender';
       <button type="submit" class="primary" [disabled]="busy() || !loaded()">{{ uploading() ? 'Enviando imagem…' : busy() ? 'Publicando…' : 'Publicar configurações' }}</button>
     </fieldset></form>
   }</section>
+  <app-admin-mercado-pago />
   <app-admin-sender />
 `, styles: `.banner-settings{border-top:1px solid var(--border);margin-top:28px;padding-top:24px}.slide-editor{border:1px solid var(--border);border-radius:10px;padding:20px;margin:20px 0}.slide-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}.banner-preview{height:180px;max-width:400px;background:#edf2f8;margin:15px 0;border-radius:8px;overflow:hidden}` })
 export class AdminSettings {

@@ -1,3 +1,4 @@
+import { SettingsModule } from '../settings/settings.module';
 import { Body, Controller, Delete, Get, Headers, HttpCode, Module, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { UsersModule } from '../users/users.module';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -26,5 +27,5 @@ export class PaymentsController {
   @Post('notifications/mercadopago') @HttpCode(200)
   webhook(@Query('data.id') id: string, @Headers('x-request-id') requestId: string, @Headers('x-signature') signature: string) { return this.payments.webhook(id, requestId, signature); }
 }
-@Module({ imports: [ProductsModule, UsersModule, MongooseModule.forFeature([{ name: Order.name, schema: OrderSchema }])], controllers: [PaymentsController], providers: [PaymentsService, MercadoPagoService] })
+@Module({ imports: [SettingsModule, ProductsModule, UsersModule, MongooseModule.forFeature([{ name: Order.name, schema: OrderSchema }])], controllers: [PaymentsController], providers: [PaymentsService, MercadoPagoService] })
 export class PaymentsModule {}

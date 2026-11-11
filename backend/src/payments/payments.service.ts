@@ -73,7 +73,7 @@ export class PaymentsService {
     return this.view(order);
   }
   async create(customer: string, id: string, dto: CreatePaymentDto) {
-    if (!this.provider.configuration().enabled) throw new ServiceUnavailableException('Pagamento ainda não configurado pela loja.');
+    if (!(await this.provider.configuration()).enabled) throw new ServiceUnavailableException('Pagamento ainda não configurado pela loja.');
     const order = await this.owned(customer, id);
     if (!eligible(order)) throw new ConflictException('Este pedido não está disponível para pagamento online.');
     if (!order.reservationExpiresAt || order.reservationExpiresAt <= new Date()) throw new ConflictException('O prazo de reserva do pedido terminou. Volte ao carrinho para tentar novamente.');
@@ -93,7 +93,7 @@ export class PaymentsService {
       $or: [{ payment: { $exists: false } }, { 'payment.status': { $in: RETRYABLE } }],
     }, { $set: { checkoutProfile, payment: { key, method: dto.method, status: 'creating' } } }, { new: true }).select('+payment').lean();
     if (!claimed) return this.status(customer, id);
-    const notificationUrl = this.config.get<string>('MP_NOTIFICATION_URL');
+    const notificationUrl = (await this.provider.credentials()).notificationUrl;
     const body = {
       transaction_amount: payableTotal(order), description: `IOT-Componentes - Pedido ${id}`,
       ...(dto.method === 'card' ? { statement_descriptor: 'IOT-COMPONENT' } : {}),
@@ -177,7 +177,7 @@ export class PaymentsService {
     if (result?.modifiedCount && update.status === OrderStatus.PAID && this.notifications) void this.notifications.create(String(order.customer), { type: 'ORDER', title: 'Pagamento confirmado', message: `O pagamento do pedido #${id.slice(-8)} foi confirmado.`, link: `/pedidos/${id}` });
   }
   async webhook(id: string, requestId: string, signature: string) {
-    if (!verifySignature(this.config.get<string>('MP_WEBHOOK_SECRET') || '', id || '', requestId || '', signature || '')) throw new UnauthorizedException('Assinatura inválida.');
+    if (!verifySignature((await this.provider.credentials()).webhookSecret || '', id || '', requestId || '', signature || '')) throw new UnauthorizedException('Assinatura inválida.');
     try { await this.apply(await this.provider.get(id)); }
     catch (error) { if (error instanceof ProviderError) throw new ServiceUnavailableException(); throw error; }
     return { received: true };
